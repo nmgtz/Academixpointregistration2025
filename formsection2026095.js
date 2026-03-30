@@ -8520,376 +8520,380 @@ function renderStudentReports(students, container) {
     // Portrait A4: 210×297mm. Render reportDiv via html2canvas → jsPDF image.
     const _REP_W = 794;  // px at 96dpi = 210mm
 
-    async function _repCapturePdf(filename, action) {
-        try {
-            const jsPDFCtor = await _axpGetJsPDF();
-            // ── gather all data the same way render() does ──
-            const lang         = LANG[currentLang];
-            const student      = students[currentIndex];
-            const eligStudent  = eligible.find(s=>s.name===student.name&&s.point===student.point);
-            if (!eligStudent) { _axpToast('No eligible data for this student','warning'); return; }
 
-            const examClass   = document.getElementById('axpRepClassSel')?.value||'';
-            const examType    = document.getElementById('axpRepExamSel')?.value||'';
-            const si          = _axpSchoolInfo(currentLang);
-            const examLabel   = _axpExamLabel(examType,currentLang);
-            const clsLabel    = _axpClassLabel(examClass,currentLang);
 
-            // Read class info: live panel → SchoolInfoStorage → DOM (in order of priority)
-            // SchoolInfoStorage is always the most reliable source when PDF fires
-            const _saved = SchoolInfoStorage.getClassData(examClass) || {};
-            const _gv = (key) => {
-                // 1. Live panel input (user may be looking at it right now)
-                const panel = document.getElementById('axpClassInfoPanel');
-                if (panel) { const el = panel.querySelector(`[data-field="${key}"]`); if (el && el.value) return el.value; }
-                // 2. Storage (saved on blur / wizard save)
-                if (_saved[key]) return _saved[key];
-                // 3. Legacy DOM id
-                const dom = document.getElementById(key); if (dom && dom.value) return dom.value;
-                return '';
-            };
-            const month        = _gv('monthInput');
-            const closingDate  = _gv('closingDateInput');
-            const openingDate  = _gv('openingDateInput');
-            const classTeacher = _gv('classTeacherInput');
-            const headmaster   = _gv('headmasterInput');
-            // Requirements: base fields + extra array from storage
-            const _baseReqs  = [_gv('requirement1'),_gv('requirement2'),_gv('requirement3')].filter(Boolean);
-            const _extraReqs = (_saved._extraReqs || []).filter(Boolean);
-            const reqs       = [..._baseReqs, ..._extraReqs];
-            const year        = (typeof _schoolMeta!=='undefined'&&_schoolMeta?.year)?_schoolMeta.year:new Date().getFullYear();
-            const pt          = Number(student.point);
-            const posInfo     = eligStudent?`${eligStudent.position} / ${eligStudent.total}`:'';
-            const _cleanIdx   = (si.rawIndex||'').replace(/[.\\/\\\\\s]/g,'').toUpperCase();
-            const candNum     = _cleanIdx?`${_cleanIdx}-${String(currentIndex+1).padStart(4,'0')}`:`S000-${String(currentIndex+1).padStart(4,'0')}`;
+async function _repCapturePdf(filename, action) {
+    try {
+        const jsPDFCtor = await _axpGetJsPDF().catch(e => { _axpToast('jsPDF not available: ' + e.message, 'error'); return null; });
+        if (!jsPDFCtor) return;
 
-            // ── Behaviour grades ──
-            let disc='C',coop='C',learn='C',sports='B',part='C',punct='C',lead='C',neat='C',resp='C',creat='C';
-            let remark=lang.remarksList.followup;
-            if(pt<=17){disc='A';coop='A';learn='A';sports='C';part='A';punct='A';lead='A';neat='A';resp='A';creat='B';remark=lang.remarksList.outstanding;}
-            else if(pt<=21){disc='B';coop='B';learn='B';sports='C';part='B';punct='B';lead='B';neat='B';resp='B';creat='B';remark=lang.remarksList.commendable;}
-            else if(pt<=30){remark=lang.remarksList.satisfactory;}
+        // ── Data gathering (unchanged from your original) ──
+        const lang = LANG[currentLang];
+        const student = students[currentIndex];
+        const eligStudent = eligible.find(s => s.name === student.name && s.point === student.point);
+        if (!eligStudent) { _axpToast('No eligible data for this student', 'warning'); return; }
 
-            // ── jsPDF setup: A4 portrait 210×297mm ──
-            const doc = new jsPDFCtor({unit:'mm',format:'a4',orientation:'portrait',compress:false,precision:6,putOnlyUsedFonts:true});
-            const PW=210, PH=297, ML=10, MR=10, MT=10, MB=10;
-            const CW=PW-ML-MR; // content width 190mm
+        const examClass = document.getElementById('axpRepClassSel')?.value || '';
+        const examType  = document.getElementById('axpRepExamSel')?.value  || '';
+        const si        = _axpSchoolInfo(currentLang);
+        const examLabel = _axpExamLabel(examType, currentLang);
+        const clsLabel  = _axpClassLabel(examClass, currentLang);
 
-            const navy=[26,58,92], gold=[200,168,75], lgrey=[220,232,245], white=[255,255,255], black=[0,0,0], red=[183,28,28];
-            const gradeCol={A:[0,100,0],B:[0,170,0],C:[173,255,47],D:[255,165,0],F:[255,0,0]};
-            const gradeFg={A:white,B:white,C:black,D:black,F:white};
+        const _saved = SchoolInfoStorage.getClassData(examClass) || {};
+        const _gv = (key) => {
+            const panel = document.getElementById('axpClassInfoPanel');
+            if (panel) { const el = panel.querySelector(`[data-field="${key}"]`); if (el && el.value) return el.value; }
+            if (_saved[key]) return _saved[key];
+            const dom = document.getElementById(key); if (dom && dom.value) return dom.value;
+            return '';
+        };
 
-            function setFill(rgb){doc.setFillColor(rgb[0],rgb[1],rgb[2]);}
-            function setDraw(rgb){doc.setDrawColor(rgb[0],rgb[1],rgb[2]);}
-            function setTxt(rgb){doc.setTextColor(rgb[0],rgb[1],rgb[2]);}
-            function rect(x,y,w,h,fill,stroke){
-                if(fill){setFill(fill);doc.setLineWidth(0);}
-                if(stroke){setDraw(stroke);doc.setLineWidth(0.3);}
-                const style=fill&&stroke?'FD':fill?'F':stroke?'D':'S';
-                doc.rect(x,y,w,h,style);
-            }
-            function cell(x,y,w,h,txt,opts={}){
-                const bg=opts.bg||null, fg=opts.fg||black, bd=opts.border!==false?[180,180,200]:null;
-                if(bg)rect(x,y,w,h,bg,bd);
-                else if(bd){setFill(white);rect(x,y,w,h,white,bd);}
-                if(txt==null||txt==='') return;
-                doc.setFontSize(opts.fs||8);
-                doc.setFont('helvetica',opts.bold?'bold':'normal');
-                setTxt(fg);
-                const pad=1.5, iw=w-pad*2;
-                const lines=doc.splitTextToSize(String(txt),iw);
-                const align=opts.align||'center';
-                const tx=align==='left'?x+pad:align==='right'?x+w-pad:x+w/2;
-                const ty=y+h/2+doc.getFontSize()*0.35;
-                doc.text(lines[0],tx,ty,{align});
-            }
+        const month        = _gv('monthInput');
+        const closingDate  = _gv('closingDateInput');
+        const openingDate  = _gv('openingDateInput');
+        const classTeacher = _gv('classTeacherInput');
+        const headmaster   = _gv('headmasterInput');
+        const _bReqs  = [_gv('requirement1'), _gv('requirement2'), _gv('requirement3')].filter(Boolean);
+        const _extraReqs = (_saved._extraReqs || []).filter(Boolean);
+        const reqs    = [..._bReqs, ..._extraReqs];
+        const year    = (typeof _schoolMeta !== 'undefined' && _schoolMeta?.year) ? _schoolMeta.year : new Date().getFullYear();
+        const pt      = Number(student.point);
+        const posInfo = eligStudent ? `${eligStudent.position} / ${eligStudent.total}` : '';
+        const _cleanIdx = (si.rawIndex || '').replace(/[.\\/\\\\\s]/g, '').toUpperCase();
+        const candNum   = _cleanIdx ? `${_cleanIdx}-${String(currentIndex + 1).padStart(4, '0')}` : `S000-${String(currentIndex + 1).padStart(4, '0')}`;
 
-            let curY=MT;
+        // ── Behaviour ──
+        let disc='C',coop='C',learn='C',sports='B',part='C',punct='C',lead='C',neat='C',resp='C',creat='C';
+        let remark = lang.remarksList.followup;
+        if (pt <= 17) { disc='A';coop='A';learn='A';sports='C';part='A';punct='A';lead='A';neat='A';resp='A';creat='B';remark=lang.remarksList.outstanding; }
+        else if (pt <= 21) { disc='B';coop='B';learn='B';sports='C';part='B';punct='B';lead='B';neat='B';resp='B';creat='B';remark=lang.remarksList.commendable; }
+        else if (pt <= 30) { remark = lang.remarksList.satisfactory; }
 
-            // ── Outer border ──
-            setDraw(navy); doc.setLineWidth(0.5);
-            doc.rect(4,4,PW-8,PH-8,'D');
-            doc.setLineWidth(0.2); setDraw([170,196,224]);
-            doc.rect(6.5,6.5,PW-13,PH-13,'D');
+        // ── jsPDF A4 portrait ──
+        const doc = new jsPDFCtor({ unit:'mm', format:'a4', orientation:'portrait', compress:false, precision:6, putOnlyUsedFonts:true });
+        const PW=210, PH=297, ML=10, MR=10, MT=10, MB=10;
+        const CW = PW - ML - MR;  // 190mm
 
-            // ── Header ──
-            doc.setFontSize(8); doc.setFont('helvetica','bold'); setTxt(navy);
-            doc.text(si.governmentHeader||'PRESIDENT\'S OFFICE',PW/2,curY+3,{align:'center'});
-            curY+=5;
-            doc.setFontSize(7); doc.setFont('helvetica','normal'); setTxt([80,80,80]);
-            doc.text(si.region||'',PW/2,curY+2,{align:'center'});
-            curY+=4;
+        // ══ LAYOUT CONSTANTS ══════════════════════════════════════
+        // Signature blocks pinned from the bottom — absolute positions
+        const SIG_BLOCK_H = 24;  // height of each signature block (class teacher / head)
+        const SIG_GAP     = 2;   // gap between the two signature blocks
+        const TERM_H      = 7;   // term dates line height
+        const REQ_LINE_H  = 4.5; // height per requirement line
+        const DIVIDER_H   = 2;   // small gap before section separator
 
-            // School name
-            doc.setFontSize(13); doc.setFont('helvetica','bold'); setTxt(navy);
-            doc.text(si.displayLine1.toUpperCase(),PW/2,curY+4,{align:'center'});
-            curY+=6;
-            doc.setFontSize(7); doc.setFont('helvetica','normal'); setTxt([80,80,80]);
-            doc.text(si.displayLine2||'',PW/2,curY+2,{align:'center'});
-            curY+=4;
+        // Pin positions (measured from page bottom)
+        const htY  = PH - MB - SIG_BLOCK_H;             // head of school top Y
+        const ctY  = htY - SIG_GAP - SIG_BLOCK_H;       // class teacher top Y
+        const termY = ctY - DIVIDER_H - TERM_H;          // term dates Y
+        // Requirements sit above term dates, growing upward
+        const reqsBottomY = termY - DIVIDER_H;
+        // Academic table fills exactly 40% of page height
+        const TABLE_AREA_H = PH * 0.40;  // ≈ 118.8mm
 
-            // Title banner
-            setFill(navy); doc.rect(ML,curY,CW,7,'F');
-            doc.setFontSize(9); doc.setFont('helvetica','bold'); setTxt(white);
-            const titleText = `${clsLabel.toUpperCase()} ${examLabel.toUpperCase()} ${(lang.reportTitle||'RESULTS').toUpperCase()} — ${year}`;
-            doc.text(titleText,PW/2,curY+4.5,{align:'center'});
-            curY+=8;
+        // ── Colour helpers ──
+        const navy=[26,58,92],white=[255,255,255],black=[0,0,0],red=[183,28,28];
+        const gradeCol={A:[0,100,0],B:[0,170,0],C:[173,255,47],D:[255,165,0],F:[255,0,0]};
+        const gradeFg={A:white,B:white,C:black,D:black,F:white};
+        const lgrey=[220,232,245];
 
-            // ── Student info row ──
-            const infoH=6;
-            setFill(lgrey); setDraw([170,196,224]); doc.setLineWidth(0.2);
-            doc.rect(ML,curY,CW,infoH,'FD');
-            const cols=[{lbl:(lang.studentName||'Name')+':',val:student.name,w:CW*0.38},{lbl:(lang.class||'Class')+':',val:clsLabel,w:CW*0.2},{lbl:(lang.sex||'Sex')+':',val:student.gender||'-',w:CW*0.12},{lbl:'No:',val:candNum,w:CW*0.3}];
-            let ix=ML;
-            cols.forEach((c,i)=>{
-                doc.setFontSize(8); doc.setFont('helvetica','bold'); setTxt(navy);
-                doc.text(c.lbl,ix+1.5,curY+4);
-                const lblW=doc.getTextWidth(c.lbl)+2;
-                doc.setFont('helvetica','normal'); setTxt(black);
-                doc.text(c.val,ix+lblW,curY+4);
-                ix+=c.w;
-                if(i<cols.length-1){setDraw([170,196,224]);doc.setLineWidth(0.2);doc.line(ix,curY,ix,curY+infoH);}
-            });
-            curY+=infoH+2;
+        const sf=c=>doc.setFillColor(c[0],c[1],c[2]);
+        const sd=c=>doc.setDrawColor(c[0],c[1],c[2]);
+        const st=c=>doc.setTextColor(c[0],c[1],c[2]);
+        const T=v=>(v==null||String(v).trim()==='')?' ':String(v);
 
-            // ── Description (plain text lines, no HTML tags) ──
-            const descLines=[
-                currentLang==='sw'
-                    ? `${student.name} alifanya mtihani wa ${examLabel} katika ${clsLabel}, mwaka ${year}.`
-                    : `This report certifies the academic performance of ${student.name} who sat for the ${examLabel} examination in ${clsLabel}, ${year}.`,
-                currentLang==='sw'
-                    ? `Alipata jumla ya pointi ${student.point}, daraja ${student.division}${eligStudent?`, nafasi ${eligStudent.position} kati ya ${eligStudent.total} darasani`:''}. `
-                    : `The student scored ${student.point} points, attaining Division ${student.division}${eligStudent?`, ranked ${eligStudent.position} out of ${eligStudent.total} in class`:''}. `,
-                currentLang==='sw'
-                    ? 'Daraja I (7-17): Bora Sana | Daraja II (18-21): Nzuri | Daraja III (22-25): Ya Kati | Daraja IV (26-33): Hafifu | Daraja 0 (34-35): Kushindwa'
-                    : 'Division I (7-17 pts): Excellent | Division II (18-21): Good | Division III (22-25): Average | Division IV (26-33): Poor | Division 0 (34-35): Fail',
-                currentLang==='sw'
-                    ? 'Matokeo ya kitaaluma na tathmini ya tabia zilizo chini zinaonyesha maendeleo ya mwanafunzi kwa muhula huu.'
-                    : 'The academic results and behavioral assessments below reflect the student\'s overall progress this term.',
-                currentLang==='sw'
-                    ? 'Wazazi na walezi wanashauriwa kupitia ripoti hii pamoja na mwanafunzi na kutoa msaada unaohitajika.'
-                    : 'Parents and guardians are encouraged to review this report with the student and provide the necessary support for continued improvement.',
-            ];
-            rect(ML,curY,CW,descLines.length*4+3,[247,250,255],[220,232,245]);
-            doc.setFontSize(8); doc.setFont('helvetica','normal'); setTxt([40,40,40]);
-            descLines.forEach((ln,i)=>{
-                const wrapped=doc.splitTextToSize(ln,CW-4);
-                doc.text(wrapped[0],ML+2,curY+3+i*4);
-            });
-            curY+=descLines.length*4+5;
+        let curY = MT;
 
-            // ── Main body: Academic table (left 57%) + Behaviour table (right 40%) ──
-            const bodyTop=curY;
-            const acW=CW*0.57, bhW=CW*0.40, gap=CW*0.03;
-            const bhX=ML+acW+gap;
+        // ══ OUTER BORDER ══════════════════════════════════════════
+        sd(navy); doc.setLineWidth(0.5); doc.rect(4,4,PW-8,PH-8,'D');
+        sd([170,196,224]); doc.setLineWidth(0.2); doc.rect(6.5,6.5,PW-13,PH-13,'D');
 
-            // Academic header
-            setFill(lgrey); setDraw(navy); doc.setLineWidth(0.3);
-            doc.rect(ML,curY,acW,5,'FD');
-            doc.setFontSize(8); doc.setFont('helvetica','bold'); setTxt(navy);
-            doc.text((lang.performanceTitle||'ACADEMIC PERFORMANCE').toUpperCase(),ML+acW/2,curY+3.5,{align:'center'});
-            curY+=5;
+        // ══ HEADER ════════════════════════════════════════════════
+        doc.setFontSize(8); doc.setFont('helvetica','bold'); st(navy);
+        doc.text(si.governmentHeader || "PRESIDENT'S OFFICE", PW/2, curY+3, {align:'center'});
+        curY += 5;
+        doc.setFontSize(7); doc.setFont('helvetica','normal'); st([80,80,80]);
+        doc.text(si.region || '', PW/2, curY+2, {align:'center'});
+        curY += 4;
 
-            // Academic table columns
-            const sbjW=acW*0.36, mrkW=acW*0.14, grW=acW*0.12, cmtW=acW*0.38;
-            // Header row
-            [[lang.subject||'Subject','left',sbjW],[lang.mark||'Mark','center',mrkW],['Gr','center',grW],[lang.comment||'Remark','center',cmtW]].reduce((x,[lbl,al,w])=>{
-                rect(x,curY,w,5,lgrey,[170,196,224]);
-                doc.setFontSize(7.5); doc.setFont('helvetica','bold'); setTxt(navy);
-                doc.text(lbl,al==='left'?x+1.5:al==='right'?x+w-1.5:x+w/2,curY+3.5,{align:al});
+        // School name
+        doc.setFontSize(13); doc.setFont('helvetica','bold'); st(navy);
+        doc.text(si.displayLine1.toUpperCase(), PW/2, curY+4, {align:'center'});
+        curY += 6;
+        doc.setFontSize(7); doc.setFont('helvetica','normal'); st([80,80,80]);
+        doc.text(si.displayLine2 || '', PW/2, curY+2, {align:'center'});
+        curY += 4;
+
+        // Title banner
+        sf(navy); doc.rect(ML, curY, CW, 7, 'F');
+        doc.setFontSize(9); doc.setFont('helvetica','bold'); st(white);
+        doc.text(`${clsLabel.toUpperCase()} ${examLabel.toUpperCase()} ${(lang.reportTitle||'RESULTS').toUpperCase()} — ${year}`, PW/2, curY+4.5, {align:'center'});
+        curY += 8;
+
+        // ══ STUDENT INFO ROW ══════════════════════════════════════
+        const infoH = 6;
+        sf(lgrey); sd([170,196,224]); doc.setLineWidth(0.2); doc.rect(ML, curY, CW, infoH, 'FD');
+        const infoItems = [
+            {lbl:(lang.studentName||'Name')+':',  val:student.name,    w:CW*0.38},
+            {lbl:(lang.class||'Class')+':',        val:clsLabel,        w:CW*0.20},
+            {lbl:(lang.sex||'Sex')+':',            val:student.gender||'-', w:CW*0.12},
+            {lbl:'No:',                            val:candNum,         w:CW*0.30}
+        ];
+        let ix = ML;
+        infoItems.forEach((c, i) => {
+            doc.setFontSize(8); doc.setFont('helvetica','bold'); st(navy);
+            doc.text(c.lbl, ix+1.5, curY+4);
+            const lblW = doc.getTextWidth(c.lbl) + 2;
+            doc.setFont('helvetica','normal'); st(black);
+            doc.text(T(c.val), ix+lblW, curY+4);
+            ix += c.w;
+            if (i < infoItems.length-1) { sd([170,196,224]); doc.setLineWidth(0.2); doc.line(ix, curY, ix, curY+infoH); }
+        });
+        curY += infoH + 2;
+
+        // ══ DESCRIPTION (compact — 3 lines max) ═══════════════════
+        const descText = currentLang === 'sw'
+            ? `${T(student.name)} alifanya mtihani wa ${examLabel} katika ${clsLabel}, ${year}. Alipata pointi ${T(student.point)}, daraja ${T(student.division)}${eligStudent ? `, nafasi ${eligStudent.position}/${eligStudent.total}` : ''}. Wazazi wanashauriwa kushirikiana na mwanafunzi.`
+            : `This certifies that ${T(student.name)} sat for the ${examLabel} in ${clsLabel}, ${year}. The student scored ${T(student.point)} points, Division ${T(student.division)}${eligStudent ? `, ranked ${eligStudent.position}/${eligStudent.total}` : ''}. Parents are encouraged to support continued improvement.`;
+
+        const descLines = doc.splitTextToSize(descText, CW-4);
+        const descH = descLines.length * 4 + 4;
+        sf([247,250,255]); sd([220,232,245]); doc.setLineWidth(0.2);
+        doc.rect(ML, curY, CW, descH, 'FD');
+        doc.setFontSize(8); doc.setFont('helvetica','normal'); st([40,40,40]);
+        descLines.forEach((ln, i) => doc.text(ln, ML+2, curY+3+i*4));
+        curY += descH + 2;
+
+        // ══ ACADEMIC + BEHAVIOUR TABLES (40% of page height) ══════
+        const tableTop   = curY;
+        const tableAreaH = TABLE_AREA_H;  // Fixed: 40% of A4
+        const acW = CW * 0.57;
+        const bhW = CW * 0.40;
+        const bhX = ML + acW + CW * 0.03;
+
+        const subjectEntries = Object.entries(student.scores || {}).filter(([, sc]) => sc.mark != null && sc.mark !== '');
+        const numSubjects    = subjectEntries.length || 1;
+
+        // Row heights stretch to fill exactly tableAreaH
+        const ACAD_HDR_H = 5.5;
+        const BEH_HDR_H  = 5.5;
+        const FOOT_H     = 6.5;
+        const availableForRows = tableAreaH - ACAD_HDR_H - FOOT_H;
+        const subRowH = Math.max(4.5, Math.min(9, availableForRows / numSubjects));
+        const behItems = [
+            ['discipline',disc],['cooperation',coop],['learning',learn],['sports',sports],
+            ['participation',part],['punctuality',punct],['leadership',lead],
+            ['neatness',neat],['respect',resp],['creativity',creat]
+        ];
+        const behRowH = Math.max(3.8, Math.min(7, (tableAreaH - BEH_HDR_H - 6) / (behItems.length + 1)));
+        const fontSize = Math.max(6, Math.min(9, subRowH * 0.75));
+
+        // ── Academic header ──
+        sf(lgrey); sd(navy); doc.setLineWidth(0.3);
+        doc.rect(ML, tableTop, acW, ACAD_HDR_H, 'FD');
+        doc.setFontSize(8); doc.setFont('helvetica','bold'); st(navy);
+        doc.text((lang.performanceTitle||'ACADEMIC PERFORMANCE').toUpperCase(), ML+acW/2, tableTop+3.5, {align:'center'});
+
+        // Column widths inside academic table
+        const sbjW = acW*0.36, mrkW = acW*0.14, grW = acW*0.12, cmtW = acW*0.38;
+        // Academic sub-header
+        let ahY = tableTop + ACAD_HDR_H;
+        [[lang.subject||'Subject','left',sbjW],[lang.mark||'Mark','center',mrkW],['Gr','center',grW],[lang.comment||'Remark','center',cmtW]]
+            .reduce((x,[lbl,al,w]) => {
+                sf(lgrey); sd([170,196,224]); doc.setLineWidth(0.15); doc.rect(x, ahY, w, 4.5, 'FD');
+                doc.setFontSize(7); doc.setFont('helvetica','bold'); st(navy);
+                doc.text(lbl, al==='left'?x+1.5:x+w/2, ahY+3, {align:al});
                 return x+w;
-            },ML);
-            curY+=5;
+            }, ML);
+        let acY = ahY + 4.5;
 
-            // Subject rows
-            const subEntries=Object.entries(student.scores||{}).filter(([,sc])=>sc.mark!=null&&sc.mark!=='');
-            subEntries.forEach(([sub,sc])=>{
-                const rH=4.5;
-                let x=ML;
-                rect(x,curY,sbjW,rH,white,[200,200,210]);
-                doc.setFontSize(7.5); doc.setFont('helvetica','normal'); setTxt(black);
-                doc.text(doc.splitTextToSize(sub,sbjW-2)[0],x+1.5,curY+3); x+=sbjW;
-                rect(x,curY,mrkW,rH,white,[200,200,210]);
-                doc.setFontSize(7.5); doc.setFont('helvetica','bold'); setTxt(black);
-                doc.text(String(sc.mark),x+mrkW/2,curY+3,{align:'center'}); x+=mrkW;
-                const gBg=gradeCol[sc.grade]||[255,255,255];
-                const gFg=gradeFg[sc.grade]||black;
-                rect(x,curY,grW,rH,gBg,[200,200,210]);
-                doc.setFontSize(7.5); doc.setFont('helvetica','bold'); setTxt(gFg);
-                doc.text(sc.grade||'-',x+grW/2,curY+3,{align:'center'}); x+=grW;
-                rect(x,curY,cmtW,rH,white,[200,200,210]);
-                doc.setFontSize(7); doc.setFont('helvetica','normal'); setTxt([80,80,80]);
-                doc.text(doc.splitTextToSize(lang.comments[sc.grade]||'-',cmtW-2)[0],x+1.5,curY+3); 
-                curY+=rH;
+        // Subject rows — stretched to fill 40% zone
+        subjectEntries.forEach(([sub, sc]) => {
+            const gBg = gradeCol[sc.grade] || white;
+            const gFg = gradeFg[sc.grade]  || black;
+            let x = ML;
+
+            // Subject name cell
+            sf(white); sd([200,200,210]); doc.setLineWidth(0.15); doc.rect(x, acY, sbjW, subRowH, 'FD');
+            doc.setFontSize(fontSize); doc.setFont('helvetica','normal'); st(black);
+            const subLabel = doc.splitTextToSize(sub, sbjW-2);
+            doc.text(subLabel[0], x+1.5, acY+subRowH/2+fontSize*0.35); x += sbjW;
+
+            // Mark cell
+            sf(white); doc.rect(x, acY, mrkW, subRowH, 'FD');
+            doc.setFont('helvetica','bold');
+            doc.text(String(sc.mark), x+mrkW/2, acY+subRowH/2+fontSize*0.35, {align:'center'}); x += mrkW;
+
+            // Grade cell (coloured)
+            sf(gBg); doc.rect(x, acY, grW, subRowH, 'FD');
+            st(gFg); doc.text(sc.grade||'-', x+grW/2, acY+subRowH/2+fontSize*0.35, {align:'center'}); x += grW;
+
+            // Comment cell
+            sf(white); doc.rect(x, acY, cmtW, subRowH, 'FD');
+            doc.setFont('helvetica','normal'); st([80,80,80]);
+            const cmt = doc.splitTextToSize(lang.comments[sc.grade]||'-', cmtW-2);
+            doc.setFontSize(Math.max(5.5, fontSize-1));
+            doc.text(cmt[0], x+1.5, acY+subRowH/2+fontSize*0.35);
+            doc.setFontSize(fontSize);
+
+            acY += subRowH;
+        });
+
+        // Academic footer (points / division / position)
+        const ftxt = `${lang.points||'Points'}: ${T(student.point)}  |  ${lang.division||'Div'}: ${T(student.division)}  |  ${lang.position||'Position'}: ${posInfo}`;
+        sf(lgrey); sd([170,196,224]); doc.setLineWidth(0.2); doc.rect(ML, acY, acW, FOOT_H, 'FD');
+        doc.setFontSize(8); doc.setFont('helvetica','bold'); st(red);
+        doc.text(ftxt, ML+2, acY+FOOT_H/2+8*0.35);
+
+        // ── Behaviour header ──
+        let bhY = tableTop;
+        sf(lgrey); sd(navy); doc.setLineWidth(0.3);
+        doc.rect(bhX, bhY, bhW, BEH_HDR_H, 'FD');
+        doc.setFontSize(8); doc.setFont('helvetica','bold'); st(navy);
+        doc.text((lang.behavior||'BEHAVIOUR').toUpperCase(), bhX+bhW/2, bhY+3.5, {align:'center'});
+        bhY += BEH_HDR_H;
+
+        // Behaviour sub-header
+        sf(lgrey); sd([170,196,224]); doc.setLineWidth(0.15);
+        doc.rect(bhX, bhY, bhW*0.76, 4.5, 'FD');
+        doc.rect(bhX+bhW*0.76, bhY, bhW*0.24, 4.5, 'FD');
+        doc.setFontSize(7); doc.setFont('helvetica','bold'); st(navy);
+        doc.text(lang.aspect||'Aspect', bhX+1.5, bhY+3);
+        doc.text(lang.rating||'Rate', bhX+bhW*0.88, bhY+3, {align:'center'});
+        bhY += 4.5;
+
+        // Behaviour rows — stretched
+        behItems.forEach(([key, val]) => {
+            const bBg = gradeCol[val] || white;
+            const bFg = gradeFg[val]  || black;
+            sf(white); sd([200,200,210]); doc.setLineWidth(0.15); doc.rect(bhX, bhY, bhW*0.76, behRowH, 'FD');
+            sf(bBg); doc.rect(bhX+bhW*0.76, bhY, bhW*0.24, behRowH, 'FD');
+            doc.setFontSize(Math.max(6, fontSize-0.5)); doc.setFont('helvetica','normal'); st(black);
+            doc.text(lang.behaviorAspects[key]||key, bhX+1.5, bhY+behRowH/2+fontSize*0.3);
+            doc.setFont('helvetica','bold'); st(bFg);
+            doc.text(val, bhX+bhW*0.88, bhY+behRowH/2+fontSize*0.3, {align:'center'});
+            bhY += behRowH;
+        });
+
+        // Overall remark (remaining space in behaviour column)
+        const remarkLines = doc.splitTextToSize(remark, bhW-4);
+        const remarkH = Math.max(6, tableTop + tableAreaH - bhY);
+        sf([247,250,255]); sd([200,200,210]); doc.setLineWidth(0.15);
+        doc.rect(bhX, bhY, bhW, remarkH, 'FD');
+        doc.setFontSize(7); doc.setFont('helvetica','italic'); st([80,80,80]);
+        doc.text(remarkLines.slice(0,2), bhX+2, bhY+3.5);
+
+        // ══ REQUIREMENTS (above term dates, growing upward) ════════
+        if (reqs.length > 0) {
+            const reqTotalH = reqs.length * REQ_LINE_H + 6;
+            const reqTopY   = reqsBottomY - reqTotalH;
+            sf([247,250,255]); sd([170,196,224]); doc.setLineWidth(0.2);
+            doc.rect(ML, reqTopY, CW, reqTotalH, 'FD');
+            doc.setFontSize(8); doc.setFont('helvetica','bold'); st(navy);
+            doc.text((lang.requirements||'Requirements for Next Term')+':', ML+2, reqTopY+4);
+            doc.setFont('helvetica','normal'); st([40,40,40]);
+            reqs.forEach((r, i) => {
+                doc.setFontSize(7.5);
+                doc.text(`${i+1}. ${r}`, ML+4, reqTopY+7+i*REQ_LINE_H);
             });
-            // Footer row
-            const ftxt=`${lang.points||'Pts'}: ${student.point}  |  ${lang.division||'Div'}: ${student.division}  |  ${lang.position||'Pos'}: ${posInfo}`;
-            rect(ML,curY,acW,5,lgrey,[170,196,224]);
-            doc.setFontSize(8); doc.setFont('helvetica','bold'); setTxt(red);
-            doc.text(ftxt,ML+2,curY+3.5);
-            curY+=5;
-            const bodyBottom=curY;
-
-            // ── Behaviour table ──
-            let by=bodyTop;
-            setFill(lgrey); setDraw(navy); doc.setLineWidth(0.3);
-            doc.rect(bhX,by,bhW,5,'FD');
-            doc.setFontSize(8); doc.setFont('helvetica','bold'); setTxt(navy);
-            doc.text((lang.behavior||'BEHAVIOUR').toUpperCase(),bhX+bhW/2,by+3.5,{align:'center'});
-            by+=5;
-            // header
-            rect(bhX,by,bhW*0.75,4.5,lgrey,[170,196,224]);
-            rect(bhX+bhW*0.75,by,bhW*0.25,4.5,lgrey,[170,196,224]);
-            doc.setFontSize(7.5); doc.setFont('helvetica','bold'); setTxt(navy);
-            doc.text(lang.aspect||'Aspect',bhX+1.5,by+3);
-            doc.text(lang.rating||'Rate',bhX+bhW*0.75+bhW*0.125,by+3,{align:'center'});
-            by+=4.5;
-            const behavItems=[['discipline',disc],['cooperation',coop],['learning',learn],['sports',sports],['participation',part],['punctuality',punct],['leadership',lead],['neatness',neat],['respect',resp],['creativity',creat]];
-            behavItems.forEach(([key,val])=>{
-                const bBg=gradeCol[val]||white, bFg=gradeFg[val]||black;
-                rect(bhX,by,bhW*0.75,4,white,[200,200,210]);
-                rect(bhX+bhW*0.75,by,bhW*0.25,4,bBg,[200,200,210]);
-                doc.setFontSize(7.5); doc.setFont('helvetica','normal'); setTxt(black);
-                doc.text(lang.behaviorAspects[key]||key,bhX+1.5,by+3);
-                doc.setFont('helvetica','bold'); setTxt(bFg);
-                doc.text(val,bhX+bhW*0.75+bhW*0.125,by+3,{align:'center'});
-                by+=4;
-            });
-            // overall remark
-            const remarksLines=doc.splitTextToSize(remark,bhW-4);
-            rect(bhX,by,bhW,remarksLines.length*3.5+3,[247,250,255],[200,200,210]);
-            doc.setFontSize(7.5); doc.setFont('helvetica','italic'); setTxt([80,80,80]);
-            doc.text(remarksLines,bhX+2,by+3.5);
-
-            curY=Math.max(curY,by+remarksLines.length*3.5+4)+3;
-
-            // ── Requirements ─────────────────────────────────────────────────
-            if (reqs.length) {
-                curY += 2;
-                setDraw([170,196,224]); doc.setLineWidth(0.2);
-                doc.line(ML, curY, ML+CW, curY); curY += 3;
-                doc.setFontSize(8); doc.setFont('helvetica','bold'); setTxt(navy);
-                doc.text((lang.requirements||'Requirements for Next Term') + ':', ML, curY+3.5);
-                curY += 5;
-                reqs.forEach((r, i) => {
-                    const wrapped = doc.splitTextToSize(`${i+1}. ${r}`, CW-6);
-                    doc.setFontSize(8); doc.setFont('helvetica','normal'); setTxt([40,40,40]);
-                    wrapped.forEach((ln, j) => doc.text(ln, ML+3, curY+3.5+j*4));
-                    curY += wrapped.length * 4 + 1;
-                });
-                curY += 3;
-            }
-
-            // ── Term dates ────────────────────────────────────────────────────
-            setDraw([170,196,224]); doc.setLineWidth(0.2);
-            doc.line(ML, curY, ML+CW, curY); curY += 4;
-            doc.setFontSize(9); doc.setFont('helvetica','normal'); setTxt([60,60,60]);
-            const _cLabel = (lang.closes||'School Closes') + ': ';
-            const _rLabel = (lang.reopens||'School Opens') + ': ';
-            doc.text(_cLabel, ML, curY+3);
-            doc.setFont('helvetica','bold'); setTxt(black);
-            doc.text(closingDate||'—', ML + doc.getTextWidth(_cLabel), curY+3);
-            const _reopensX = ML + CW*0.5;
-            doc.setFont('helvetica','normal'); setTxt([60,60,60]);
-            doc.text(_rLabel, _reopensX, curY+3);
-            doc.setFont('helvetica','bold'); setTxt(black);
-            doc.text(openingDate||'—', _reopensX + doc.getTextWidth(_rLabel), curY+3);
-            curY += 7;
-
-            // ── Class Teacher — comment + signature ───────────────────────────
-            setDraw(navy); doc.setLineWidth(0.5);
-            doc.line(ML, curY, ML+CW, curY); curY += 3;
-            // Comment heading
-            doc.setFontSize(9); doc.setFont('helvetica','bold'); setTxt(navy);
-            doc.text((lang.classComment||"Class Teacher's Comment") + ':', ML, curY+3.5);
-            curY += 5;
-            // Comment body
-            const ctRemark = lang.classCommentIntro
-                ? lang.classCommentIntro(student.name)
-                  + ' ' + (pt<=12 ? lang.performanceLevels?.strong : pt<=21 ? lang.performanceLevels?.moderate : lang.performanceLevels?.weak)
-                  + ' ' + (lang.academicPerformance||'academic performance')
-                  + ' ' + (lang.thisTerm||'this term.')
-                  + ' ' + (pt<=28 ? lang.encouragement?.encouraged : lang.encouragement?.necessary)
-                : remark;
-            const ctLines = doc.splitTextToSize(ctRemark, CW-4);
-            doc.setFontSize(8.5); doc.setFont('helvetica','normal'); setTxt([40,40,40]);
-            doc.text(ctLines, ML, curY+3);
-            curY += ctLines.length * 4 + 5;
-            // Signature row: [left block = name] [right block = date]
-            // "Class Teacher" is the role label — NOT the full lang.classComment string
-            const ctRoleLabel  = currentLang==='sw' ? 'Mwalimu wa Darasa' : 'Class Teacher';
-            const ctDateLabel  = lang.date || 'Date';
-            const ctSigW  = CW * 0.54;
-            const ctDateX = ML + CW * 0.62;
-            const ctDateW = CW * 0.38;
-            // Small grey labels above lines
-            doc.setFontSize(7.5); doc.setFont('helvetica','normal'); setTxt([130,130,130]);
-            doc.text(ctRoleLabel + ':', ML, curY);
-            doc.text(ctDateLabel + ':', ctDateX, curY);
-            curY += 3;
-            // Signature lines (navy)
-            setDraw(navy); doc.setLineWidth(0.5);
-            doc.line(ML, curY+6, ML+ctSigW, curY+6);
-            doc.line(ctDateX, curY+6, ctDateX+ctDateW, curY+6);
-            // Name and date ON the lines (bold navy)
-            doc.setFontSize(9); doc.setFont('helvetica','bold'); setTxt(navy);
-            if (classTeacher) doc.text(classTeacher, ML+1, curY+5.5);
-            if (closingDate)  doc.text(closingDate,  ctDateX+1, curY+5.5);
-            curY += 8;
-            // Name/date repeated below lines (small grey)
-            doc.setFontSize(7.5); doc.setFont('helvetica','normal'); setTxt([100,100,100]);
-            doc.text(classTeacher||'___________________________', ML, curY);
-            doc.text(closingDate ||'_______________',            ctDateX, curY);
-            curY += 3.5;
-            // Role label beneath (smallest)
-            doc.setFontSize(7); setTxt([150,150,150]);
-            doc.text(ctRoleLabel, ML, curY);
-            curY += 7;
-
-            // ── Head of School — comment + signature ──────────────────────────
-            setDraw(navy); doc.setLineWidth(0.5);
-            doc.line(ML, curY, ML+CW, curY); curY += 3;
-            doc.setFontSize(9); doc.setFont('helvetica','bold'); setTxt(navy);
-            doc.text((lang.headComment||"Head of School's Comment") + ':', ML, curY+3.5);
-            curY += 5;
-            const htRemark = (pt<=13 ? lang.remarksList.outstanding : pt<=17 ? lang.remarksList.commendable : pt<=24 ? lang.remarksList.satisfactory : lang.remarksList.followup)
-                           + ' ' + (lang.headSupportNote||'');
-            const htLines = doc.splitTextToSize(htRemark, CW-4);
-            doc.setFontSize(8.5); doc.setFont('helvetica','normal'); setTxt([40,40,40]);
-            doc.text(htLines, ML, curY+3);
-            curY += htLines.length * 4 + 5;
-            const htRoleLabel = currentLang==='sw' ? 'Mkuu wa Shule' : 'Head of School';
-            const htDateLabel = lang.date || 'Date';
-            const htSigW  = CW * 0.54;
-            const htDateX = ML + CW * 0.62;
-            const htDateW = CW * 0.38;
-            doc.setFontSize(7.5); doc.setFont('helvetica','normal'); setTxt([130,130,130]);
-            doc.text(htRoleLabel + ':', ML, curY);
-            doc.text(htDateLabel + ':', htDateX, curY);
-            curY += 3;
-            setDraw(navy); doc.setLineWidth(0.5);
-            doc.line(ML, curY+6, ML+htSigW, curY+6);
-            doc.line(htDateX, curY+6, htDateX+htDateW, curY+6);
-            doc.setFontSize(9); doc.setFont('helvetica','bold'); setTxt(navy);
-            if (headmaster)  doc.text(headmaster,  ML+1,      curY+5.5);
-            if (closingDate) doc.text(closingDate,  htDateX+1, curY+5.5);
-            curY += 8;
-            doc.setFontSize(7.5); doc.setFont('helvetica','normal'); setTxt([100,100,100]);
-            doc.text(headmaster ||'___________________________', ML,      curY);
-            doc.text(closingDate||'_______________',             htDateX, curY);
-            curY += 3.5;
-            doc.setFontSize(7); setTxt([150,150,150]);
-            doc.text(htRoleLabel, ML, curY);
-
-            // ── Deliver ──
-            if(action==='preview') window.open(doc.output('bloburl'),'_blank');
-            else doc.save(filename);
-        } catch(err) {
-            console.error('[AXP report PDF]', err);
-            _axpToast('Report PDF failed: '+err.message,'error');
         }
-    }
 
+        // ══ TERM DATES ═════════════════════════════════════════════
+        sd([170,196,224]); doc.setLineWidth(0.2);
+        doc.line(ML, termY, ML+CW, termY);
+        doc.setFontSize(8.5); doc.setFont('helvetica','normal'); st([60,60,60]);
+        const cLabel = (lang.closes||'Closes')+': ';
+        const rLabel = (lang.reopens||'Reopens')+': ';
+        doc.text(cLabel, ML, termY+TERM_H-1);
+        doc.setFont('helvetica','bold'); st(navy);
+        doc.text(T(closingDate), ML+doc.getTextWidth(cLabel), termY+TERM_H-1);
+        const rxPos = ML+CW*0.5;
+        doc.setFont('helvetica','normal'); st([60,60,60]);
+        doc.text(rLabel, rxPos, termY+TERM_H-1);
+        doc.setFont('helvetica','bold'); st(navy);
+        doc.text(T(openingDate), rxPos+doc.getTextWidth(rLabel), termY+TERM_H-1);
+
+        // ══ CLASS TEACHER — PINNED ══════════════════════════════════
+        // Separator
+        sd(navy); doc.setLineWidth(0.5); doc.line(ML, ctY, ML+CW, ctY);
+
+        // Comment text (fitted into available height)
+        const ctComment = lang.classCommentIntro
+            ? lang.classCommentIntro(student.name)
+              + ' ' + (pt<=12?lang.performanceLevels?.strong:pt<=21?lang.performanceLevels?.moderate:lang.performanceLevels?.weak)
+              + '. ' + (pt<=28?lang.encouragement?.encouraged:lang.encouragement?.necessary)
+            : remark;
+        const ctLines   = doc.splitTextToSize(ctComment, CW-4);
+        const ctLabelY  = ctY + 3.5;
+        doc.setFontSize(8); doc.setFont('helvetica','bold'); st(navy);
+        doc.text((lang.classComment||"Class Teacher's Comment")+':', ML, ctLabelY);
+        doc.setFontSize(7.5); doc.setFont('helvetica','normal'); st([40,40,40]);
+        // Fit comment lines in remaining space before signature line
+        const sigLineY = ctY + SIG_BLOCK_H - 8;
+        ctLines.slice(0,2).forEach((ln,i)=>doc.text(ln,ML,ctLabelY+4+i*3.5));
+
+        // Signature row — names filled in, no blank lines
+        const ctRoleLabel  = currentLang==='sw'?'Mwalimu wa Darasa':'Class Teacher';
+        const ctSigW  = CW*0.54;
+        const ctDateX = ML+CW*0.62;
+        const ctDateW = CW*0.38;
+
+        // Draw separator line for signature area
+        sd(navy); doc.setLineWidth(0.4);
+        doc.line(ML, sigLineY, ML+ctSigW, sigLineY);
+        doc.line(ctDateX, sigLineY, ctDateX+ctDateW, sigLineY);
+
+        // Write name ON the line (no blank fill-in lines)
+        doc.setFontSize(9); doc.setFont('helvetica','bold'); st(navy);
+        if (classTeacher) doc.text(classTeacher, ML+1, sigLineY-0.5);
+        if (closingDate)  doc.text(closingDate,  ctDateX+1, sigLineY-0.5);
+
+        // Role label below line
+        doc.setFontSize(7); doc.setFont('helvetica','normal'); st([100,100,100]);
+        doc.text(ctRoleLabel, ML, sigLineY+4);
+        doc.text(lang.date||'Date', ctDateX, sigLineY+4);
+
+        // ══ HEAD OF SCHOOL — PINNED ═════════════════════════════════
+        sd(navy); doc.setLineWidth(0.5); doc.line(ML, htY, ML+CW, htY);
+
+        const htComment = (pt<=13?lang.remarksList.outstanding:pt<=17?lang.remarksList.commendable:pt<=24?lang.remarksList.satisfactory:lang.remarksList.followup)
+                        + ' ' + (lang.headSupportNote||'');
+        const htLines   = doc.splitTextToSize(htComment, CW-4);
+        const htLabelY  = htY + 3.5;
+        doc.setFontSize(8); doc.setFont('helvetica','bold'); st(navy);
+        doc.text((lang.headComment||"Head of School's Comment")+':', ML, htLabelY);
+        doc.setFontSize(7.5); doc.setFont('helvetica','normal'); st([40,40,40]);
+        htLines.slice(0,1).forEach((ln,i)=>doc.text(ln,ML,htLabelY+4+i*3.5));
+
+        const htSigLineY = htY + SIG_BLOCK_H - 8;
+        const htRoleLabel= currentLang==='sw'?'Mkuu wa Shule':'Head of School';
+        const htSigW  = CW*0.54;
+        const htDateX = ML+CW*0.62;
+        const htDateW = CW*0.38;
+
+        sd(navy); doc.setLineWidth(0.4);
+        doc.line(ML, htSigLineY, ML+htSigW, htSigLineY);
+        doc.line(htDateX, htSigLineY, htDateX+htDateW, htSigLineY);
+
+        // Names filled in — no blank lines
+        doc.setFontSize(9); doc.setFont('helvetica','bold'); st(navy);
+        if (headmaster)  doc.text(headmaster,  ML+1, htSigLineY-0.5);
+        if (closingDate) doc.text(closingDate,  htDateX+1, htSigLineY-0.5);
+
+        doc.setFontSize(7); doc.setFont('helvetica','normal'); st([100,100,100]);
+        doc.text(htRoleLabel, ML, htSigLineY+4);
+        doc.text(lang.date||'Date', htDateX, htSigLineY+4);
+
+        // ══ DELIVER ═════════════════════════════════════════════════
+        if (action === 'preview') window.open(doc.output('bloburl'), '_blank');
+        else doc.save(filename);
+
+    } catch (err) {
+        console.error('[AXP report PDF]', err);
+        _axpToast('Report PDF failed: ' + err.message, 'error');
+    }
+}
+  
     // Helper for button loading state in this scope
     function _repBtnLoad(id, text) {
         const b = document.getElementById(id);
