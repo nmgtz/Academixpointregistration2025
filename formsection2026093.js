@@ -6307,17 +6307,8 @@ function renderResultsReportsSection(containerEl) {
         return div;
     }
 
-// ─── DIRECT jsPDF GENERATOR (replaces _axpRRGeneratePDF) ─────────────────────
-// Builds the results PDF entirely in jsPDF — no html2canvas, no html2pdf.
-// Layout: A4 landscape, 297×210mm, margins 8mm each side.
-//
-// Page structure:
-//   Page 1:  School header + Division summary table
-//   Page 2…N: Student results table (rows wrap naturally)
-//   Last page: Centre Summary + Overall Analysis + Subject Table
-//
-// jsPDF is available globally as window.jspdf.jsPDF (from the html2pdf bundle).
-function _axpRRGeneratePDF(action, cls, examType) {
+
+  function _axpRRGeneratePDF(action, cls, examType) {
     if (!_currentStudents || !_currentStudents.length) {
         _axpToast('Load results first before downloading PDF.', 'warning');
         return Promise.resolve();
@@ -6339,6 +6330,10 @@ function _axpRRGeneratePDF(action, cls, examType) {
             const classLabel = _axpClassLabel(cls,'en');
             const sanitize = s => s.replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_');
             const filename = `${sanitize(si.rawName||'School')}_${sanitize(cls)}_${sanitize(examType)}.pdf`;
+
+            /* ── IMPORTANT: Declare showPosition FIRST before any use ── */
+            const showPosition = (document.getElementById('axpRRPosSel')||{value:'show'}).value === 'show';
+            const displayMode = (document.getElementById('axpRRDisplaySel')||{value:'both'}).value;
 
             /* ── Sort: females A→Z first, then males A→Z ── */
             const students = _axpSortStudents(_currentStudents.slice());
@@ -6402,7 +6397,7 @@ function _axpRRGeneratePDF(action, cls, examType) {
             };
 
             /* ── Compute stats using sorted students ── */
-            const eligible = students.filter(s=>s.point>=7&&s.point<=35).sort((a,b)=>a.point-b.point);
+            const eligible = students.filter(s => s.point>=7&&s.point<=35).sort((a,b)=>a.point-b.point);
             eligible.forEach((s,i)=>{ s._pos=i+1; });
 
             const subjectSet = new Set();
@@ -6423,6 +6418,18 @@ function _axpRRGeneratePDF(action, cls, examType) {
             let dPts=0,dCnt=0;
             students.forEach(s=>{if(dp[s.division]){dPts+=dp[s.division];dCnt++;}});
             const schoolGPA=dCnt?(avgSubGPA+dPts/dCnt)/2:null;
+
+            /* ── Fixed columns — NOW uses showPosition which is already declared above ── */
+            const fixedCols = showPosition
+                ? [{l:"CAND'S NO",w:18},{l:"CAND'S NAME",w:38},{l:'SEX',w:8},{l:'AGG',w:10},{l:'DIV',w:10},{l:'POS',w:10}]
+                : [{l:"CAND'S NO",w:18},{l:"CAND'S NAME",w:38},{l:'SEX',w:8},{l:'AGG',w:10},{l:'DIV',w:10}];
+
+            const fixedW = fixedCols.reduce((a,c)=>a+c.w,0);
+            const subjColW = CW - fixedW;
+
+            const SRH = 5.5;
+            const THH = 6;
+            const schoolIdx = (si.rawIndex||'').replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_').toUpperCase();
 
             /* ════ PAGE 1 — School Header + Division Table ════ */
             pageNum = 1;
@@ -6482,27 +6489,10 @@ function _axpRRGeneratePDF(action, cls, examType) {
             }
             curY += 4;
 
-            /* ════ STUDENT TABLE — uses sortedStudents ════ */
-            const fixedCols = showPosition
-                ? [{l:"CAND'S NO",w:18},{l:"CAND'S NAME",w:38},{l:'SEX',w:8},{l:'AGG',w:10},{l:'DIV',w:10},{l:'POS',w:10}]
-                : [{l:"CAND'S NO",w:18},{l:"CAND'S NAME",w:38},{l:'SEX',w:8},{l:'AGG',w:10},{l:'DIV',w:10}];
-
-            /* resolve showPosition from the outer scope */
-            const showPosition = (document.getElementById('axpRRPosSel')||{value:'show'}).value === 'show';
-            const fixedCols2 = showPosition
-                ? [{l:"CAND'S NO",w:18},{l:"CAND'S NAME",w:38},{l:'SEX',w:8},{l:'AGG',w:10},{l:'DIV',w:10},{l:'POS',w:10}]
-                : [{l:"CAND'S NO",w:18},{l:"CAND'S NAME",w:38},{l:'SEX',w:8},{l:'AGG',w:10},{l:'DIV',w:10}];
-            const fixedW = fixedCols2.reduce((a,c)=>a+c.w,0);
-            const subjColW = CW - fixedW;
-            const displayMode = (document.getElementById('axpRRDisplaySel')||{value:'both'}).value;
-
-            const SRH = 5.5;
-            const THH = 6;
-            const schoolIdx = (si.rawIndex||'').replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_').toUpperCase();
-
+            /* ════ STUDENT TABLE ════ */
             const drawStudentHeader = () => {
                 let x = ML;
-                fixedCols2.forEach(c=>{ cell(x,curY,c.w,THH,c.l,{bold:true,fontSize:6.5}); x+=c.w; });
+                fixedCols.forEach(c=>{ cell(x,curY,c.w,THH,c.l,{bold:true,fontSize:6.5}); x+=c.w; });
                 cell(x,curY,subjColW,THH,'DETAILED SUBJECTS',{bold:true,fontSize:6.5});
                 curY+=THH;
             };
@@ -6528,12 +6518,12 @@ function _axpRRGeneratePDF(action, cls, examType) {
                 const subLines = doc.splitTextToSize(summary, subjColW-2);
                 const rowH = Math.max(SRH, subLines.length * 3.2 + 2);
 
-                cell(x,curY,fixedCols2[0].w,rowH,cNum,{fontSize:5.5}); x+=fixedCols2[0].w;
-                cell(x,curY,fixedCols2[1].w,rowH,s.name||'',{fontSize:6,align:'left'}); x+=fixedCols2[1].w;
-                cell(x,curY,fixedCols2[2].w,rowH,s.gender||'-',{fontSize:7}); x+=fixedCols2[2].w;
-                cell(x,curY,fixedCols2[3].w,rowH,s.point,{fontSize:6.5}); x+=fixedCols2[3].w;
-                cell(x,curY,fixedCols2[4].w,rowH,s.division||'-',{fontSize:7,bold:true}); x+=fixedCols2[4].w;
-                if (showPosition) { cell(x,curY,fixedCols2[5].w,rowH,s._pos||'',{fontSize:6.5}); x+=fixedCols2[5].w; }
+                cell(x,curY,fixedCols[0].w,rowH,cNum,{fontSize:5.5}); x+=fixedCols[0].w;
+                cell(x,curY,fixedCols[1].w,rowH,s.name||'',{fontSize:6,align:'left'}); x+=fixedCols[1].w;
+                cell(x,curY,fixedCols[2].w,rowH,s.gender||'-',{fontSize:7}); x+=fixedCols[2].w;
+                cell(x,curY,fixedCols[3].w,rowH,s.point,{fontSize:6.5}); x+=fixedCols[3].w;
+                cell(x,curY,fixedCols[4].w,rowH,s.division||'-',{fontSize:7,bold:true}); x+=fixedCols[4].w;
+                if (showPosition && fixedCols[5]) { cell(x,curY,fixedCols[5].w,rowH,s._pos||'',{fontSize:6.5}); x+=fixedCols[5].w; }
 
                 doc.setFillColor(255,255,255); doc.setDrawColor(0,0,0); doc.setLineWidth(0.2);
                 doc.rect(x,curY,subjColW,rowH,'FD');
@@ -6573,7 +6563,7 @@ function _axpRRGeneratePDF(action, cls, examType) {
 
             /* Overall Analysis Table */
             const overall={registered:{F:0,M:0},sat:{F:0,M:0},clean:{F:0,M:0},absent:{F:0,M:0},INC:{F:0,M:0}};
-            students.forEach(s=>{
+            students.forEach(s => {
                 const g=s.gender==='F'?'F':'M';
                 overall.registered[g]++;
                 if(Object.keys(s.scores||{}).length>0)overall.sat[g]++;
@@ -6689,6 +6679,8 @@ function _axpRRGeneratePDF(action, cls, examType) {
     });
 }
 
+
+  
     function _axpRRStartReports(students) {
         const cont = document.getElementById('axpRRContent');
         if (!cont) return;
