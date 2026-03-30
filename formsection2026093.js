@@ -6331,17 +6331,15 @@ function renderResultsReportsSection(containerEl) {
             const sanitize = s => s.replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_');
             const filename = `${sanitize(si.rawName||'School')}_${sanitize(cls)}_${sanitize(examType)}.pdf`;
 
-            /* ── IMPORTANT: Declare showPosition FIRST before any use ── */
+            /* ── DECLARE showPosition AND displayMode FIRST before any usage ── */
             const showPosition = (document.getElementById('axpRRPosSel')||{value:'show'}).value === 'show';
-            const displayMode = (document.getElementById('axpRRDisplaySel')||{value:'both'}).value;
+            const displayMode  = (document.getElementById('axpRRDisplaySel')||{value:'both'}).value;
 
             /* ── Sort: females A→Z first, then males A→Z ── */
             const students = _axpSortStudents(_currentStudents.slice());
 
             const gradeCol = { A:[0,100,0], B:[0,170,0], C:[173,255,47], D:[255,165,0], F:[255,0,0] };
             const gradeFg  = { A:[255,255,255], B:[255,255,255], C:[0,0,0], D:[0,0,0], F:[255,255,255] };
-            const divCol   = { I:[0,100,0], II:[0,170,0], III:[173,255,47], IV:[255,165,0], O:[255,0,0] };
-            const divFg    = { I:[255,255,255], II:[255,255,255], III:[0,0,0], IV:[0,0,0], O:[255,255,255] };
             const gpaToColour = gpa => {
                 if (gpa<=1.6) return { bg:[0,100,0],   fg:[255,255,255], grade:'A', label:'Excellent' };
                 if (gpa<=2.6) return { bg:[0,170,0],   fg:[255,255,255], grade:'B', label:'Very Good' };
@@ -6396,7 +6394,7 @@ function renderResultsReportsSection(containerEl) {
                 }
             };
 
-            /* ── Compute stats using sorted students ── */
+            /* ── Compute stats ── */
             const eligible = students.filter(s => s.point>=7&&s.point<=35).sort((a,b)=>a.point-b.point);
             eligible.forEach((s,i)=>{ s._pos=i+1; });
 
@@ -6419,7 +6417,7 @@ function renderResultsReportsSection(containerEl) {
             students.forEach(s=>{if(dp[s.division]){dPts+=dp[s.division];dCnt++;}});
             const schoolGPA=dCnt?(avgSubGPA+dPts/dCnt)/2:null;
 
-            /* ── Fixed columns — NOW uses showPosition which is already declared above ── */
+            /* ── Fixed columns — showPosition already declared above ── */
             const fixedCols = showPosition
                 ? [{l:"CAND'S NO",w:18},{l:"CAND'S NAME",w:38},{l:'SEX',w:8},{l:'AGG',w:10},{l:'DIV',w:10},{l:'POS',w:10}]
                 : [{l:"CAND'S NO",w:18},{l:"CAND'S NAME",w:38},{l:'SEX',w:8},{l:'AGG',w:10},{l:'DIV',w:10}];
@@ -6442,6 +6440,7 @@ function renderResultsReportsSection(containerEl) {
                 (si.displayLine2?si.displayLine2.toUpperCase()+' — ':'')+si.displayName.toUpperCase(),
                 `${classLabel.toUpperCase()} ${examLabel.toUpperCase()} RESULTS — ${year}`
             ].filter(Boolean);
+
             const hFonts = [
                 {size:8,  bold:false},
                 {size:8,  bold:false},
@@ -6449,6 +6448,7 @@ function renderResultsReportsSection(containerEl) {
                 {size:14, bold:true},
                 {size:10, bold:true}
             ];
+
             hLines.forEach((ln,i)=>{
                 const f=hFonts[i]||{size:8,bold:false};
                 doc.setFont('helvetica',f.bold?'bold':'normal');
@@ -6523,7 +6523,10 @@ function renderResultsReportsSection(containerEl) {
                 cell(x,curY,fixedCols[2].w,rowH,s.gender||'-',{fontSize:7}); x+=fixedCols[2].w;
                 cell(x,curY,fixedCols[3].w,rowH,s.point,{fontSize:6.5}); x+=fixedCols[3].w;
                 cell(x,curY,fixedCols[4].w,rowH,s.division||'-',{fontSize:7,bold:true}); x+=fixedCols[4].w;
-                if (showPosition && fixedCols[5]) { cell(x,curY,fixedCols[5].w,rowH,s._pos||'',{fontSize:6.5}); x+=fixedCols[5].w; }
+                if (showPosition && fixedCols[5]) {
+                    cell(x,curY,fixedCols[5].w,rowH,s._pos||'',{fontSize:6.5});
+                    x+=fixedCols[5].w;
+                }
 
                 doc.setFillColor(255,255,255); doc.setDrawColor(0,0,0); doc.setLineWidth(0.2);
                 doc.rect(x,curY,subjColW,rowH,'FD');
@@ -6544,6 +6547,7 @@ function renderResultsReportsSection(containerEl) {
 
             cell(ML,curY,CW,csHdrH,'EXAMINATION CENTRE OVERALL PERFORMANCE',{bold:true,fontSize:9});
             curY+=csHdrH;
+
             const csRows=[
                 ['TOTAL PASSED CANDIDATES (DIV I–IV)', String(passed)],
                 ['PERFORMANCE PERCENTAGE', perfPct+'%'],
@@ -6612,6 +6616,7 @@ function renderResultsReportsSection(containerEl) {
                     }
                 });
             });
+
             const subGPAs={};
             subjects.forEach(sub=>{ subGPAs[sub]=subStats[sub].tot?subStats[sub].gpaSum/subStats[sub].tot:5; });
             const sorted2=[...subjects].sort((a,b)=>subGPAs[a]-subGPAs[b]);
@@ -6632,7 +6637,11 @@ function renderResultsReportsSection(containerEl) {
             cell(sx,curY,sSubW,sTH*2,'SUBJECT',{bold:true,fontSize:6,align:'left'}); sx+=sSubW;
             ['SAT-F','SAT-M','TOTAL'].forEach(h=>{ cell(sx,curY,sSatW,sTH*2,h,{bold:true,fontSize:5}); sx+=sSatW; });
             ['A','B','C','D','F'].forEach(gr=>{ cell(sx,curY,sGrpW,sTH,gr,{bold:true,fontSize:6}); sx+=sGrpW; });
-            ['AVER','GPA','POS','GRADE'].forEach(h=>{ cell(sx,curY,h==='GPA'?sGpaW:h==='GRADE'?sGradeW:h==='POS'?sPosW:sAverW,sTH*2,h,{bold:true,fontSize:5.5}); sx+=h==='GPA'?sGpaW:h==='GRADE'?sGradeW:h==='POS'?sPosW:sAverW; });
+            ['AVER','GPA','POS','GRADE'].forEach(h=>{
+                const w = h==='GPA'?sGpaW:h==='GRADE'?sGradeW:h==='POS'?sPosW:sAverW;
+                cell(sx,curY,w,sTH*2,h,{bold:true,fontSize:5.5});
+                sx+=w;
+            });
             curY+=sTH;
             sx=sX+sSubW+sSatW*3;
             ['A','B','C','D','F'].forEach(()=>['F','M','T'].forEach(l=>{ cell(sx,curY,sGrFMT,sTH,l,{bold:true,fontSize:5}); sx+=sGrFMT; }));
@@ -6671,6 +6680,7 @@ function renderResultsReportsSection(containerEl) {
                 window.open(doc.output('bloburl'), '_blank');
             }
             resolve();
+
         } catch(err) {
             console.error('[AXP PDF direct]', err);
             _axpToast('PDF generation failed: '+err.message, 'error');
@@ -6678,7 +6688,6 @@ function renderResultsReportsSection(containerEl) {
         }
     });
 }
-
 
   
     function _axpRRStartReports(students) {
