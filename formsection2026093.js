@@ -6318,7 +6318,10 @@ function renderResultsReportsSection(containerEl) {
         try {
             const jsPDFCtor = await _axpGetJsPDF().catch(e => { _axpToast('jsPDF not available: '+e.message,'error'); return null; });
             if (!jsPDFCtor) { resolve(); return; }
-
+                                   /* ── DECLARE showPosition AND displayMode FIRST before any usage ── */
+            const showPosition = (document.getElementById('axpRRPosSel')||{value:'show'}).value === 'show';
+            const displayMode  = (document.getElementById('axpRRDisplaySel')||{value:'both'}).value;
+          
             const doc = new jsPDFCtor({unit:'mm',format:'a4',orientation:'landscape',compress:false,precision:6,putOnlyUsedFonts:true});
             const PW = doc.internal.pageSize.getWidth();
             const PH = doc.internal.pageSize.getHeight();
@@ -6330,10 +6333,6 @@ function renderResultsReportsSection(containerEl) {
             const classLabel = _axpClassLabel(cls,'en');
             const sanitize = s => s.replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_');
             const filename = `${sanitize(si.rawName||'School')}_${sanitize(cls)}_${sanitize(examType)}.pdf`;
-
-            /* ── DECLARE showPosition AND displayMode FIRST before any usage ── */
-            const showPosition = (document.getElementById('axpRRPosSel')||{value:'show'}).value === 'show';
-            const displayMode  = (document.getElementById('axpRRDisplaySel')||{value:'both'}).value;
 
             /* ── Sort: females A→Z first, then males A→Z ── */
             const students = _axpSortStudents(_currentStudents.slice());
