@@ -8520,373 +8520,536 @@ function renderStudentReports(students, container) {
     // Portrait A4: 210×297mm. Render reportDiv via html2canvas → jsPDF image.
     const _REP_W = 794;  // px at 96dpi = 210mm
 
-
+// ─────────────────────────────────────────────────────────────────────────────
+// FIXED _repCapturePdf — Complete replacement
+// - Teacher & Head of School ALWAYS at bottom (fixed position)
+// - Everything auto-filled, nothing left blank after printing
+// - Header matches results header style
+// - Full bilingual support (en / sw)
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function _repCapturePdf(filename, action) {
     try {
         const jsPDFCtor = await _axpGetJsPDF().catch(e => { _axpToast('jsPDF not available: ' + e.message, 'error'); return null; });
         if (!jsPDFCtor) return;
 
-        // ── Data gathering (unchanged from your original) ──
-        const lang = LANG[currentLang];
-        const student = students[currentIndex];
-        const eligStudent = eligible.find(s => s.name === student.name && s.point === student.point);
-        if (!eligStudent) { _axpToast('No eligible data for this student', 'warning'); return; }
+        // ── Data gathering ──────────────────────────────────────────────────
+        const lang2        = LANG[currentLang] || LANG['en'];
+        const student2     = students[currentIndex];
+        const elig2        = eligible.find(s => s.name === student2.name && s.point === student2.point);
 
-        const examClass = document.getElementById('axpRepClassSel')?.value || '';
-        const examType  = document.getElementById('axpRepExamSel')?.value  || '';
-        const si        = _axpSchoolInfo(currentLang);
-        const examLabel = _axpExamLabel(examType, currentLang);
-        const clsLabel  = _axpClassLabel(examClass, currentLang);
+        const si2          = _axpSchoolInfo(currentLang || 'en');
+        const examClass2   = document.getElementById('axpRepClassSel')?.value || '';
+        const examType2    = document.getElementById('axpRepExamSel')?.value  || '';
+        const examLabel2   = _axpExamLabel(examType2, currentLang);
+        const clsLabel2    = _axpClassLabel(examClass2, currentLang);
 
-        const _saved = SchoolInfoStorage.getClassData(examClass) || {};
-        const _gv = (key) => {
+        const _saved2      = SchoolInfoStorage.getClassData(examClass2) || {};
+        const _gv2 = key => {
             const panel = document.getElementById('axpClassInfoPanel');
             if (panel) { const el = panel.querySelector(`[data-field="${key}"]`); if (el && el.value) return el.value; }
-            if (_saved[key]) return _saved[key];
+            if (_saved2[key]) return _saved2[key];
             const dom = document.getElementById(key); if (dom && dom.value) return dom.value;
             return '';
         };
 
-        const month        = _gv('monthInput');
-        const closingDate  = _gv('closingDateInput');
-        const openingDate  = _gv('openingDateInput');
-        const classTeacher = _gv('classTeacherInput');
-        const headmaster   = _gv('headmasterInput');
-        const _bReqs  = [_gv('requirement1'), _gv('requirement2'), _gv('requirement3')].filter(Boolean);
-        const _extraReqs = (_saved._extraReqs || []).filter(Boolean);
-        const reqs    = [..._bReqs, ..._extraReqs];
-        const year    = (typeof _schoolMeta !== 'undefined' && _schoolMeta?.year) ? _schoolMeta.year : new Date().getFullYear();
-        const pt      = Number(student.point);
-        const posInfo = eligStudent ? `${eligStudent.position} / ${eligStudent.total}` : '';
-        const _cleanIdx = (si.rawIndex || '').replace(/[.\\/\\\\\s]/g, '').toUpperCase();
-        const candNum   = _cleanIdx ? `${_cleanIdx}-${String(currentIndex + 1).padStart(4, '0')}` : `S000-${String(currentIndex + 1).padStart(4, '0')}`;
+        const month2        = _gv2('monthInput');
+        const closingDate2  = _gv2('closingDateInput')  || new Date().toLocaleDateString('en-GB');
+        const openingDate2  = _gv2('openingDateInput')  || '';
+        const classTeacher2 = _gv2('classTeacherInput') || (currentLang === 'sw' ? 'Mwalimu wa Darasa' : 'Class Teacher');
+        const headmaster2   = _gv2('headmasterInput')   || (currentLang === 'sw' ? 'Mkuu wa Shule' : 'Head of School');
 
-        // ── Behaviour ──
-        let disc='C',coop='C',learn='C',sports='B',part='C',punct='C',lead='C',neat='C',resp='C',creat='C';
-        let remark = lang.remarksList.followup;
-        if (pt <= 17) { disc='A';coop='A';learn='A';sports='C';part='A';punct='A';lead='A';neat='A';resp='A';creat='B';remark=lang.remarksList.outstanding; }
-        else if (pt <= 21) { disc='B';coop='B';learn='B';sports='C';part='B';punct='B';lead='B';neat='B';resp='B';creat='B';remark=lang.remarksList.commendable; }
-        else if (pt <= 30) { remark = lang.remarksList.satisfactory; }
+        const _bReqs2 = [_gv2('requirement1'), _gv2('requirement2'), _gv2('requirement3')].filter(Boolean);
+        const _eReqs2 = (_saved2._extraReqs || []).filter(Boolean);
+        const reqs2   = [..._bReqs2, ..._eReqs2];
 
-        // ── jsPDF A4 portrait ──
-        const doc = new jsPDFCtor({ unit:'mm', format:'a4', orientation:'portrait', compress:false, precision:6, putOnlyUsedFonts:true });
-        const PW=210, PH=297, ML=10, MR=10, MT=10, MB=10;
-        const CW = PW - ML - MR;  // 190mm
+        const year2      = (typeof _schoolMeta !== 'undefined' && _schoolMeta?.year) ? _schoolMeta.year : new Date().getFullYear();
+        const pt2        = Number(student2.point);
+        const posInfo2   = elig2 ? `${elig2.position} / ${elig2.total}` : (currentLang === 'sw' ? 'Haijulikani' : 'N/A');
+        const _ci2       = (si2.rawIndex || '').replace(/[\./\\\s]/g, '').toUpperCase();
+        const cNum2      = _ci2 ? `${_ci2}-${String(currentIndex + 1).padStart(4, '0')}` : `S000-${String(currentIndex + 1).padStart(4, '0')}`;
 
-        // ══ LAYOUT CONSTANTS ══════════════════════════════════════
-        // Signature blocks pinned from the bottom — absolute positions
-        const SIG_BLOCK_H = 24;  // height of each signature block (class teacher / head)
-        const SIG_GAP     = 2;   // gap between the two signature blocks
-        const TERM_H      = 7;   // term dates line height
-        const REQ_LINE_H  = 4.5; // height per requirement line
-        const DIVIDER_H   = 2;   // small gap before section separator
+        // ── Behaviour grades ──────────────────────────────────────────────
+        let disc2 = 'C', coop2 = 'C', learn2 = 'C', sports2 = 'B', part2 = 'C';
+        let punct2 = 'C', lead2 = 'C', neat2 = 'C', resp2 = 'C', creat2 = 'C';
+        let remark2 = lang2.remarksList.followup;
+        if (pt2 <= 17) { disc2='A'; coop2='A'; learn2='A'; sports2='C'; part2='A'; punct2='A'; lead2='A'; neat2='A'; resp2='A'; creat2='B'; remark2=lang2.remarksList.outstanding; }
+        else if (pt2 <= 21) { disc2='B'; coop2='B'; learn2='B'; sports2='C'; part2='B'; punct2='B'; lead2='B'; neat2='B'; resp2='B'; creat2='B'; remark2=lang2.remarksList.commendable; }
+        else if (pt2 <= 30) { remark2 = lang2.remarksList.satisfactory; }
 
-        // Pin positions (measured from page bottom)
-        const htY  = PH - MB - SIG_BLOCK_H;             // head of school top Y
-        const ctY  = htY - SIG_GAP - SIG_BLOCK_H;       // class teacher top Y
-        const termY = ctY - DIVIDER_H - TERM_H;          // term dates Y
-        // Requirements sit above term dates, growing upward
-        const reqsBottomY = termY - DIVIDER_H;
-        // Academic table fills exactly 40% of page height
-        const TABLE_AREA_H = PH * 0.40;  // ≈ 118.8mm
+        // ── Class teacher comment ─────────────────────────────────────────
+        const ctComment2 = lang2.classCommentIntro
+            ? lang2.classCommentIntro(student2.name) + ' '
+              + (pt2 <= 12 ? lang2.performanceLevels?.strong : pt2 <= 21 ? lang2.performanceLevels?.moderate : lang2.performanceLevels?.weak)
+              + ' ' + (lang2.academicPerformance || '') + ' ' + (lang2.thisTerm || '')
+              + ' ' + (pt2 <= 28 ? lang2.encouragement?.encouraged : lang2.encouragement?.necessary)
+            : remark2;
 
-        // ── Colour helpers ──
-        const navy=[26,58,92],white=[255,255,255],black=[0,0,0],red=[183,28,28];
-        const gradeCol={A:[0,100,0],B:[0,170,0],C:[173,255,47],D:[255,165,0],F:[255,0,0]};
-        const gradeFg={A:white,B:white,C:black,D:black,F:white};
-        const lgrey=[220,232,245];
+        const htComment2 = (pt2 <= 13 ? lang2.remarksList.outstanding
+            : pt2 <= 17 ? lang2.remarksList.commendable
+            : pt2 <= 24 ? lang2.remarksList.satisfactory
+            : lang2.remarksList.followup)
+            + ' ' + (lang2.headSupportNote || '');
 
-        const sf=c=>doc.setFillColor(c[0],c[1],c[2]);
-        const sd=c=>doc.setDrawColor(c[0],c[1],c[2]);
-        const st=c=>doc.setTextColor(c[0],c[1],c[2]);
-        const T=v=>(v==null||String(v).trim()==='')?' ':String(v);
+        // ── jsPDF: A4 Portrait 210×297mm ─────────────────────────────────
+        const doc  = new jsPDFCtor({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: false, precision: 6, putOnlyUsedFonts: true });
+        const PW   = 210, PH = 297;
+        const ML   = 10,  MR = 10;
+        const CW   = PW - ML - MR;  // 190mm
 
-        let curY = MT;
+        // ── FIXED ZONE HEIGHTS (always at bottom) ─────────────────────────
+        // These sections are pinned to exact Y positions from bottom
+        const BOTTOM_MARGIN   = 8;   // mm from bottom edge
+        const SIG_BLOCK_H     = 28;  // height of each signature block (CT + HOS)
+        const DATES_H         = 8;   // term dates row height
+        const REQS_H          = reqs2.length ? Math.min(reqs2.length * 4 + 6, 24) : 0;
+        const FIXED_ZONE_H    = SIG_BLOCK_H * 2 + DATES_H + REQS_H + 4; // total pinned zone
 
-        // ══ OUTER BORDER ══════════════════════════════════════════
-        sd(navy); doc.setLineWidth(0.5); doc.rect(4,4,PW-8,PH-8,'D');
-        sd([170,196,224]); doc.setLineWidth(0.2); doc.rect(6.5,6.5,PW-13,PH-13,'D');
+        // Pinned Y positions (measured from top)
+        const FIXED_ZONE_TOP  = PH - BOTTOM_MARGIN - FIXED_ZONE_H;
+        const DATES_Y         = FIXED_ZONE_TOP;
+        const REQS_Y          = DATES_Y + DATES_H;
+        const CT_Y            = REQS_Y + REQS_H;
+        const HOS_Y           = CT_Y + SIG_BLOCK_H;
 
-        // ══ HEADER ════════════════════════════════════════════════
-        doc.setFontSize(8); doc.setFont('helvetica','bold'); st(navy);
-        doc.text(si.governmentHeader || "PRESIDENT'S OFFICE", PW/2, curY+3, {align:'center'});
-        curY += 5;
-        doc.setFontSize(7); doc.setFont('helvetica','normal'); st([80,80,80]);
-        doc.text(si.region || '', PW/2, curY+2, {align:'center'});
-        curY += 4;
+        // ── AVAILABLE CONTENT HEIGHT (above fixed zone) ────────────────────
+        const CONTENT_TOP     = 10;  // mm from top (after header)
+        const AVAILABLE_H     = FIXED_ZONE_TOP - CONTENT_TOP;
 
-        // School name
-        doc.setFontSize(13); doc.setFont('helvetica','bold'); st(navy);
-        doc.text(si.displayLine1.toUpperCase(), PW/2, curY+4, {align:'center'});
-        curY += 6;
-        doc.setFontSize(7); doc.setFont('helvetica','normal'); st([80,80,80]);
-        doc.text(si.displayLine2 || '', PW/2, curY+2, {align:'center'});
-        curY += 4;
+        // ── Colour helpers ────────────────────────────────────────────────
+        const NAVY  = [26, 58, 92];
+        const TEAL  = [78, 204, 163];
+        const WHITE = [255, 255, 255];
+        const BLACK = [0, 0, 0];
+        const RED   = [183, 28, 28];
+        const LGREY = [220, 232, 245];
+        const GOLD  = [200, 168, 75];
 
-        // Title banner
-        sf(navy); doc.rect(ML, curY, CW, 7, 'F');
-        doc.setFontSize(9); doc.setFont('helvetica','bold'); st(white);
-        doc.text(`${clsLabel.toUpperCase()} ${examLabel.toUpperCase()} ${(lang.reportTitle||'RESULTS').toUpperCase()} — ${year}`, PW/2, curY+4.5, {align:'center'});
-        curY += 8;
+        const gradeCol = { A:[0,100,0], B:[0,170,0], C:[173,255,47], D:[255,165,0], F:[255,0,0] };
+        const gradeFg  = { A:WHITE, B:WHITE, C:BLACK, D:BLACK, F:WHITE };
 
-        // ══ STUDENT INFO ROW ══════════════════════════════════════
-        const infoH = 6;
-        sf(lgrey); sd([170,196,224]); doc.setLineWidth(0.2); doc.rect(ML, curY, CW, infoH, 'FD');
-        const infoItems = [
-            {lbl:(lang.studentName||'Name')+':',  val:student.name,    w:CW*0.38},
-            {lbl:(lang.class||'Class')+':',        val:clsLabel,        w:CW*0.20},
-            {lbl:(lang.sex||'Sex')+':',            val:student.gender||'-', w:CW*0.12},
-            {lbl:'No:',                            val:candNum,         w:CW*0.30}
-        ];
-        let ix = ML;
-        infoItems.forEach((c, i) => {
-            doc.setFontSize(8); doc.setFont('helvetica','bold'); st(navy);
-            doc.text(c.lbl, ix+1.5, curY+4);
-            const lblW = doc.getTextWidth(c.lbl) + 2;
-            doc.setFont('helvetica','normal'); st(black);
-            doc.text(T(c.val), ix+lblW, curY+4);
-            ix += c.w;
-            if (i < infoItems.length-1) { sd([170,196,224]); doc.setLineWidth(0.2); doc.line(ix, curY, ix, curY+infoH); }
-        });
-        curY += infoH + 2;
+        const sf = c => doc.setFillColor(c[0], c[1], c[2]);
+        const sd = c => doc.setDrawColor(c[0], c[1], c[2]);
+        const st = c => doc.setTextColor(c[0], c[1], c[2]);
+        const T  = v => (v == null || String(v).trim() === '') ? ' ' : String(v);
 
-        // ══ DESCRIPTION (compact — 3 lines max) ═══════════════════
-        const descText = currentLang === 'sw'
-            ? `${T(student.name)} alifanya mtihani wa ${examLabel} katika ${clsLabel}, ${year}. Alipata pointi ${T(student.point)}, daraja ${T(student.division)}${eligStudent ? `, nafasi ${eligStudent.position}/${eligStudent.total}` : ''}. Wazazi wanashauriwa kushirikiana na mwanafunzi.`
-            : `This certifies that ${T(student.name)} sat for the ${examLabel} in ${clsLabel}, ${year}. The student scored ${T(student.point)} points, Division ${T(student.division)}${eligStudent ? `, ranked ${eligStudent.position}/${eligStudent.total}` : ''}. Parents are encouraged to support continued improvement.`;
+        // ── Helper: draw a horizontal divider line ─────────────────────────
+        const hLine = (y, col, lw) => {
+            sd(col || NAVY); doc.setLineWidth(lw || 0.4);
+            doc.line(ML, y, ML + CW, y);
+        };
 
-        const descLines = doc.splitTextToSize(descText, CW-4);
-        const descH = descLines.length * 4 + 4;
-        sf([247,250,255]); sd([220,232,245]); doc.setLineWidth(0.2);
-        doc.rect(ML, curY, CW, descH, 'FD');
-        doc.setFontSize(8); doc.setFont('helvetica','normal'); st([40,40,40]);
-        descLines.forEach((ln, i) => doc.text(ln, ML+2, curY+3+i*4));
-        curY += descH + 2;
+        // ── Helper: draw filled rect ───────────────────────────────────────
+        const filledRect = (x, y, w, h, fillCol, strokeCol, lw) => {
+            sf(fillCol || WHITE);
+            if (strokeCol) { sd(strokeCol); doc.setLineWidth(lw || 0.3); doc.rect(x, y, w, h, 'FD'); }
+            else doc.rect(x, y, w, h, 'F');
+        };
 
-        // ══ ACADEMIC + BEHAVIOUR TABLES (40% of page height) ══════
-        const tableTop   = curY;
-        const tableAreaH = TABLE_AREA_H;  // Fixed: 40% of A4
-        const acW = CW * 0.57;
-        const bhW = CW * 0.40;
-        const bhX = ML + acW + CW * 0.03;
+        // ── Helper: wrapped text, returns new Y ───────────────────────────
+        const wrappedText = (text, x, y, maxW, fs, col, bold) => {
+            doc.setFontSize(fs || 8.5);
+            doc.setFont('helvetica', bold ? 'bold' : 'normal');
+            st(col || BLACK);
+            const lines = doc.splitTextToSize(T(text), maxW);
+            doc.text(lines, x, y);
+            return y + lines.length * (fs || 8.5) * 0.4 + 1;
+        };
 
-        const subjectEntries = Object.entries(student.scores || {}).filter(([, sc]) => sc.mark != null && sc.mark !== '');
-        const numSubjects    = subjectEntries.length || 1;
+        let cy = ML; // current Y cursor (top content area)
 
-        // Row heights stretch to fill exactly tableAreaH
-        const ACAD_HDR_H = 5.5;
-        const BEH_HDR_H  = 5.5;
-        const FOOT_H     = 6.5;
-        const availableForRows = tableAreaH - ACAD_HDR_H - FOOT_H;
-        const subRowH = Math.max(4.5, Math.min(9, availableForRows / numSubjects));
-        const behItems = [
-            ['discipline',disc],['cooperation',coop],['learning',learn],['sports',sports],
-            ['participation',part],['punctuality',punct],['leadership',lead],
-            ['neatness',neat],['respect',resp],['creativity',creat]
-        ];
-        const behRowH = Math.max(3.8, Math.min(7, (tableAreaH - BEH_HDR_H - 6) / (behItems.length + 1)));
-        const fontSize = Math.max(6, Math.min(9, subRowH * 0.75));
+        // ════════════════════════════════════════════════════════════════════
+        // SECTION 1 — OUTER BORDERS (decorative frame)
+        // ════════════════════════════════════════════════════════════════════
+        sd(NAVY); doc.setLineWidth(0.6); doc.rect(4, 4, PW - 8, PH - 8, 'D');
+        sd(TEAL);  doc.setLineWidth(0.25); doc.rect(6.5, 6.5, PW - 13, PH - 13, 'D');
 
-        // ── Academic header ──
-        sf(lgrey); sd(navy); doc.setLineWidth(0.3);
-        doc.rect(ML, tableTop, acW, ACAD_HDR_H, 'FD');
-        doc.setFontSize(8); doc.setFont('helvetica','bold'); st(navy);
-        doc.text((lang.performanceTitle||'ACADEMIC PERFORMANCE').toUpperCase(), ML+acW/2, tableTop+3.5, {align:'center'});
+        // Corner ornaments
+        sd(TEAL); doc.setLineWidth(1.2);
+        [[4,4,16,4,4,16],[PW-16,4,PW-4,4,PW-4,16],
+         [4,PH-16,4,PH-4,16,PH-4],[PW-4,PH-16,PW-4,PH-4,PW-16,PH-4]]
+            .forEach(([x1,y1,x2,y2,x3,y3]) => { doc.line(x1,y1,x2,y2); doc.line(x2,y2,x3,y3); });
 
-        // Column widths inside academic table
-        const sbjW = acW*0.36, mrkW = acW*0.14, grW = acW*0.12, cmtW = acW*0.38;
-        // Academic sub-header
-        let ahY = tableTop + ACAD_HDR_H;
-        [[lang.subject||'Subject','left',sbjW],[lang.mark||'Mark','center',mrkW],['Gr','center',grW],[lang.comment||'Remark','center',cmtW]]
-            .reduce((x,[lbl,al,w]) => {
-                sf(lgrey); sd([170,196,224]); doc.setLineWidth(0.15); doc.rect(x, ahY, w, 4.5, 'FD');
-                doc.setFontSize(7); doc.setFont('helvetica','bold'); st(navy);
-                doc.text(lbl, al==='left'?x+1.5:x+w/2, ahY+3, {align:al});
-                return x+w;
-            }, ML);
-        let acY = ahY + 4.5;
+        // ════════════════════════════════════════════════════════════════════
+        // SECTION 2 — SCHOOL HEADER (matches results header style)
+        // ════════════════════════════════════════════════════════════════════
+        cy = 10;
 
-        // Subject rows — stretched to fill 40% zone
-        subjectEntries.forEach(([sub, sc]) => {
-            const gBg = gradeCol[sc.grade] || white;
-            const gFg = gradeFg[sc.grade]  || black;
-            let x = ML;
+        // Read live header lines (same as results header)
+        const panel = document.getElementById('axpClassInfoPanel');
+        let hLines = [];
+        if (panel) hLines = [...panel.querySelectorAll('[data-hdrline]')].map(i => i.value.trim()).filter(Boolean);
+        if (!hLines.length) hLines = SchoolInfoStorage.getHeaderLines(examClass2).filter(Boolean);
 
-            // Subject name cell
-            sf(white); sd([200,200,210]); doc.setLineWidth(0.15); doc.rect(x, acY, sbjW, subRowH, 'FD');
-            doc.setFontSize(fontSize); doc.setFont('helvetica','normal'); st(black);
-            const subLabel = doc.splitTextToSize(sub, sbjW-2);
-            doc.text(subLabel[0], x+1.5, acY+subRowH/2+fontSize*0.35); x += sbjW;
+        // Always override with live server data (same logic as _buildSchoolHeader)
+        const _dd_pdf = (typeof _dashboardData !== 'undefined') ? _dashboardData : {};
+        const _dist_pdf = _dd_pdf.district ? _dd_pdf.district.toUpperCase() + ' DISTRICT COUNCIL' : (hLines[2] || 'DISTRICT COUNCIL');
+        hLines[0] = currentLang === 'sw' ? "OFISI YA RAIS" : "PRESIDENT'S OFFICE";
+        hLines[1] = currentLang === 'sw'
+            ? "TAWALA ZA MIKOA NA SERIKALI ZA MITAA"
+            : "REGIONAL ADMINISTRATION AND LOCAL GOVERNMENT";
+        hLines[2] = _dist_pdf;
+        hLines[3] = (si2.displayLine2 ? si2.displayLine2.toUpperCase() + ' — ' : '') + si2.displayName.toUpperCase();
+        hLines[4] = `${clsLabel2.toUpperCase()} ${examLabel2.toUpperCase()} ${currentLang === 'sw' ? 'RIPOTI YA MAENDELEO' : 'PROGRESS REPORT'} — ${year2}`;
 
-            // Mark cell
-            sf(white); doc.rect(x, acY, mrkW, subRowH, 'FD');
-            doc.setFont('helvetica','bold');
-            doc.text(String(sc.mark), x+mrkW/2, acY+subRowH/2+fontSize*0.35, {align:'center'}); x += mrkW;
+        // Font sizes per line (hierarchy)
+        const hFontSizes  = [7, 7.5, 9, 13, 9.5];
+        const hFontWeights = ['normal','normal','bold','bold','bold'];
+        const hLineGaps   = [3.5, 3.5, 4.5, 6, 5];
 
-            // Grade cell (coloured)
-            sf(gBg); doc.rect(x, acY, grW, subRowH, 'FD');
-            st(gFg); doc.text(sc.grade||'-', x+grW/2, acY+subRowH/2+fontSize*0.35, {align:'center'}); x += grW;
+        // School logo
+        const schoolLogo2 = window.getSchoolLogo ? window.getSchoolLogo() : null;
 
-            // Comment cell
-            sf(white); doc.rect(x, acY, cmtW, subRowH, 'FD');
-            doc.setFont('helvetica','normal'); st([80,80,80]);
-            const cmt = doc.splitTextToSize(lang.comments[sc.grade]||'-', cmtW-2);
-            doc.setFontSize(Math.max(5.5, fontSize-1));
-            doc.text(cmt[0], x+1.5, acY+subRowH/2+fontSize*0.35);
-            doc.setFontSize(fontSize);
+        // Draw header block
+        const HEADER_HEIGHT = 38;
+        sd(NAVY); doc.setLineWidth(0.5);
+        doc.line(ML, cy + HEADER_HEIGHT, ML + CW, cy + HEADER_HEIGHT);
 
-            acY += subRowH;
-        });
-
-        // Academic footer (points / division / position)
-        const ftxt = `${lang.points||'Points'}: ${T(student.point)}  |  ${lang.division||'Div'}: ${T(student.division)}  |  ${lang.position||'Position'}: ${posInfo}`;
-        sf(lgrey); sd([170,196,224]); doc.setLineWidth(0.2); doc.rect(ML, acY, acW, FOOT_H, 'FD');
-        doc.setFontSize(8); doc.setFont('helvetica','bold'); st(red);
-        doc.text(ftxt, ML+2, acY+FOOT_H/2+8*0.35);
-
-        // ── Behaviour header ──
-        let bhY = tableTop;
-        sf(lgrey); sd(navy); doc.setLineWidth(0.3);
-        doc.rect(bhX, bhY, bhW, BEH_HDR_H, 'FD');
-        doc.setFontSize(8); doc.setFont('helvetica','bold'); st(navy);
-        doc.text((lang.behavior||'BEHAVIOUR').toUpperCase(), bhX+bhW/2, bhY+3.5, {align:'center'});
-        bhY += BEH_HDR_H;
-
-        // Behaviour sub-header
-        sf(lgrey); sd([170,196,224]); doc.setLineWidth(0.15);
-        doc.rect(bhX, bhY, bhW*0.76, 4.5, 'FD');
-        doc.rect(bhX+bhW*0.76, bhY, bhW*0.24, 4.5, 'FD');
-        doc.setFontSize(7); doc.setFont('helvetica','bold'); st(navy);
-        doc.text(lang.aspect||'Aspect', bhX+1.5, bhY+3);
-        doc.text(lang.rating||'Rate', bhX+bhW*0.88, bhY+3, {align:'center'});
-        bhY += 4.5;
-
-        // Behaviour rows — stretched
-        behItems.forEach(([key, val]) => {
-            const bBg = gradeCol[val] || white;
-            const bFg = gradeFg[val]  || black;
-            sf(white); sd([200,200,210]); doc.setLineWidth(0.15); doc.rect(bhX, bhY, bhW*0.76, behRowH, 'FD');
-            sf(bBg); doc.rect(bhX+bhW*0.76, bhY, bhW*0.24, behRowH, 'FD');
-            doc.setFontSize(Math.max(6, fontSize-0.5)); doc.setFont('helvetica','normal'); st(black);
-            doc.text(lang.behaviorAspects[key]||key, bhX+1.5, bhY+behRowH/2+fontSize*0.3);
-            doc.setFont('helvetica','bold'); st(bFg);
-            doc.text(val, bhX+bhW*0.88, bhY+behRowH/2+fontSize*0.3, {align:'center'});
-            bhY += behRowH;
-        });
-
-        // Overall remark (remaining space in behaviour column)
-        const remarkLines = doc.splitTextToSize(remark, bhW-4);
-        const remarkH = Math.max(6, tableTop + tableAreaH - bhY);
-        sf([247,250,255]); sd([200,200,210]); doc.setLineWidth(0.15);
-        doc.rect(bhX, bhY, bhW, remarkH, 'FD');
-        doc.setFontSize(7); doc.setFont('helvetica','italic'); st([80,80,80]);
-        doc.text(remarkLines.slice(0,2), bhX+2, bhY+3.5);
-
-        // ══ REQUIREMENTS (above term dates, growing upward) ════════
-        if (reqs.length > 0) {
-            const reqTotalH = reqs.length * REQ_LINE_H + 6;
-            const reqTopY   = reqsBottomY - reqTotalH;
-            sf([247,250,255]); sd([170,196,224]); doc.setLineWidth(0.2);
-            doc.rect(ML, reqTopY, CW, reqTotalH, 'FD');
-            doc.setFontSize(8); doc.setFont('helvetica','bold'); st(navy);
-            doc.text((lang.requirements||'Requirements for Next Term')+':', ML+2, reqTopY+4);
-            doc.setFont('helvetica','normal'); st([40,40,40]);
-            reqs.forEach((r, i) => {
-                doc.setFontSize(7.5);
-                doc.text(`${i+1}. ${r}`, ML+4, reqTopY+7+i*REQ_LINE_H);
-            });
+        if (schoolLogo2) {
+            // Logo left
+            try { doc.addImage(schoolLogo2, 'PNG', ML, cy, 16, 16, '', 'FAST'); } catch(e) {}
+            // Logo right
+            try { doc.addImage(schoolLogo2, 'PNG', ML + CW - 16, cy, 16, 16, '', 'FAST'); } catch(e) {}
         }
 
-        // ══ TERM DATES ═════════════════════════════════════════════
-        sd([170,196,224]); doc.setLineWidth(0.2);
-        doc.line(ML, termY, ML+CW, termY);
-        doc.setFontSize(8.5); doc.setFont('helvetica','normal'); st([60,60,60]);
-        const cLabel = (lang.closes||'Closes')+': ';
-        const rLabel = (lang.reopens||'Reopens')+': ';
-        doc.text(cLabel, ML, termY+TERM_H-1);
-        doc.setFont('helvetica','bold'); st(navy);
-        doc.text(T(closingDate), ML+doc.getTextWidth(cLabel), termY+TERM_H-1);
-        const rxPos = ML+CW*0.5;
-        doc.setFont('helvetica','normal'); st([60,60,60]);
-        doc.text(rLabel, rxPos, termY+TERM_H-1);
-        doc.setFont('helvetica','bold'); st(navy);
-        doc.text(T(openingDate), rxPos+doc.getTextWidth(rLabel), termY+TERM_H-1);
+        // Centre text block
+        const centerX = ML + CW / 2;
+        let hy = cy + 3;
+        hLines.forEach((ln, i) => {
+            doc.setFontSize(hFontSizes[i] || 8);
+            doc.setFont('helvetica', hFontWeights[i] || 'normal');
+            const col = (i === 3) ? NAVY : (i === 4) ? NAVY : [60, 60, 60];
+            st(col);
+            doc.text(T(ln), centerX, hy, { align: 'center' });
+            hy += hLineGaps[i] || 4;
+        });
 
-        // ══ CLASS TEACHER — PINNED ══════════════════════════════════
-        // Separator
-        sd(navy); doc.setLineWidth(0.5); doc.line(ML, ctY, ML+CW, ctY);
+        cy = cy + HEADER_HEIGHT + 4;
 
-        // Comment text (fitted into available height)
-        const ctComment = lang.classCommentIntro
-            ? lang.classCommentIntro(student.name)
-              + ' ' + (pt<=12?lang.performanceLevels?.strong:pt<=21?lang.performanceLevels?.moderate:lang.performanceLevels?.weak)
-              + '. ' + (pt<=28?lang.encouragement?.encouraged:lang.encouragement?.necessary)
-            : remark;
-        const ctLines   = doc.splitTextToSize(ctComment, CW-4);
-        const ctLabelY  = ctY + 3.5;
-        doc.setFontSize(8); doc.setFont('helvetica','bold'); st(navy);
-        doc.text((lang.classComment||"Class Teacher's Comment")+':', ML, ctLabelY);
-        doc.setFontSize(7.5); doc.setFont('helvetica','normal'); st([40,40,40]);
-        // Fit comment lines in remaining space before signature line
-        const sigLineY = ctY + SIG_BLOCK_H - 8;
-        ctLines.slice(0,2).forEach((ln,i)=>doc.text(ln,ML,ctLabelY+4+i*3.5));
+        // ════════════════════════════════════════════════════════════════════
+        // SECTION 3 — CANDIDATE INFO ROW
+        // ════════════════════════════════════════════════════════════════════
+        const INFO_H = 7;
+        filledRect(ML, cy, CW, INFO_H, LGREY, [170,196,224], 0.2);
+        const infoCols = [
+            { lbl: (lang2.studentName || 'Name') + ':', val: student2.name,       w: CW * 0.38 },
+            { lbl: (lang2.class       || 'Class') + ':', val: clsLabel2,           w: CW * 0.20 },
+            { lbl: (lang2.sex         || 'Sex')   + ':', val: student2.gender || '-', w: CW * 0.12 },
+            { lbl: 'No:',                                 val: cNum2,               w: CW * 0.30 },
+        ];
+        let ix = ML;
+        infoCols.forEach((col, i) => {
+            doc.setFontSize(8); doc.setFont('helvetica', 'bold'); st(NAVY);
+            doc.text(T(col.lbl), ix + 1.5, cy + 4.5);
+            const lblW = doc.getTextWidth(T(col.lbl)) + 2;
+            doc.setFont('helvetica', 'normal'); st(BLACK);
+            doc.text(T(col.val), ix + lblW, cy + 4.5);
+            ix += col.w;
+            if (i < infoCols.length - 1) { sd([170,196,224]); doc.setLineWidth(0.2); doc.line(ix, cy, ix, cy + INFO_H); }
+        });
+        cy += INFO_H + 2;
 
-        // Signature row — names filled in, no blank lines
-        const ctRoleLabel  = currentLang==='sw'?'Mwalimu wa Darasa':'Class Teacher';
-        const ctSigW  = CW*0.54;
-        const ctDateX = ML+CW*0.62;
-        const ctDateW = CW*0.38;
+        // ════════════════════════════════════════════════════════════════════
+        // SECTION 4 — DESCRIPTION PARAGRAPH
+        // ════════════════════════════════════════════════════════════════════
+        const fullDesc2 = lang2.reportDescription
+            ? lang2.reportDescription(
+                student2.name, examLabel2, clsLabel2, year2,
+                student2.division, student2.point,
+                elig2 ? elig2.position : null,
+                elig2 ? elig2.total    : null
+              )
+            : '';
 
-        // Draw separator line for signature area
-        sd(navy); doc.setLineWidth(0.4);
-        doc.line(ML, sigLineY, ML+ctSigW, sigLineY);
-        doc.line(ctDateX, sigLineY, ctDateX+ctDateW, sigLineY);
+        // Strip HTML tags for PDF
+        const descClean = fullDesc2.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 
-        // Write name ON the line (no blank fill-in lines)
-        doc.setFontSize(9); doc.setFont('helvetica','bold'); st(navy);
-        if (classTeacher) doc.text(classTeacher, ML+1, sigLineY-0.5);
-        if (closingDate)  doc.text(closingDate,  ctDateX+1, sigLineY-0.5);
+        const DESC_PAD = 2.5;
+        const descLines = doc.splitTextToSize(descClean, CW - DESC_PAD * 2);
+        const descH = descLines.length * 3.8 + DESC_PAD * 2;
 
-        // Role label below line
-        doc.setFontSize(7); doc.setFont('helvetica','normal'); st([100,100,100]);
-        doc.text(ctRoleLabel, ML, sigLineY+4);
-        doc.text(lang.date||'Date', ctDateX, sigLineY+4);
+        filledRect(ML, cy, CW, descH, [247, 250, 255], [220, 232, 245], 0.2);
+        doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); st([40, 40, 40]);
+        doc.text(descLines, ML + DESC_PAD, cy + DESC_PAD + 3);
+        cy += descH + 2;
 
-        // ══ HEAD OF SCHOOL — PINNED ═════════════════════════════════
-        sd(navy); doc.setLineWidth(0.5); doc.line(ML, htY, ML+CW, htY);
+        // ════════════════════════════════════════════════════════════════════
+        // SECTION 5 — MAIN TABLES (Academic + Behaviour)
+        // Dynamically sized to fill available space above fixed zone
+        // ════════════════════════════════════════════════════════════════════
+        const tableTop = cy;
+        const tableBottom = FIXED_ZONE_TOP - 4;
+        const tableH = tableBottom - tableTop;
 
-        const htComment = (pt<=13?lang.remarksList.outstanding:pt<=17?lang.remarksList.commendable:pt<=24?lang.remarksList.satisfactory:lang.remarksList.followup)
-                        + ' ' + (lang.headSupportNote||'');
-        const htLines   = doc.splitTextToSize(htComment, CW-4);
-        const htLabelY  = htY + 3.5;
-        doc.setFontSize(8); doc.setFont('helvetica','bold'); st(navy);
-        doc.text((lang.headComment||"Head of School's Comment")+':', ML, htLabelY);
-        doc.setFontSize(7.5); doc.setFont('helvetica','normal'); st([40,40,40]);
-        htLines.slice(0,1).forEach((ln,i)=>doc.text(ln,ML,htLabelY+4+i*3.5));
+        const acW  = CW * 0.57;
+        const bhW  = CW * 0.40;
+        const bhX2 = ML + acW + CW * 0.03;
 
-        const htSigLineY = htY + SIG_BLOCK_H - 8;
-        const htRoleLabel= currentLang==='sw'?'Mkuu wa Shule':'Head of School';
-        const htSigW  = CW*0.54;
-        const htDateX = ML+CW*0.62;
-        const htDateW = CW*0.38;
+        // ── Academic table header ──────────────────────────────────────────
+        const ACADEMIC_HDR_H = 5;
+        filledRect(ML, cy, acW, ACADEMIC_HDR_H, LGREY, [170,196,224], 0.3);
+        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); st(NAVY);
+        doc.text((lang2.performanceTitle || 'ACADEMIC PERFORMANCE').toUpperCase(), ML + acW / 2, cy + ACADEMIC_HDR_H - 1, { align: 'center' });
+        cy += ACADEMIC_HDR_H;
 
-        sd(navy); doc.setLineWidth(0.4);
-        doc.line(ML, htSigLineY, ML+htSigW, htSigLineY);
-        doc.line(htDateX, htSigLineY, htDateX+htDateW, htSigLineY);
+        // Column widths for academic table
+        const sbjW = acW * 0.36, mrkW = acW * 0.14, grW = acW * 0.12, cmtW = acW * 0.38;
 
-        // Names filled in — no blank lines
-        doc.setFontSize(9); doc.setFont('helvetica','bold'); st(navy);
-        if (headmaster)  doc.text(headmaster,  ML+1, htSigLineY-0.5);
-        if (closingDate) doc.text(closingDate,  htDateX+1, htSigLineY-0.5);
+        // Academic table column headers
+        let acolX = ML;
+        [[lang2.subject || 'Subject', sbjW, 'left'],
+         [lang2.mark    || 'Mark',    mrkW, 'center'],
+         ['Gr',                        grW,  'center'],
+         [lang2.comment || 'Remark',   cmtW, 'center']].forEach(([lbl, w, al]) => {
+            filledRect(acolX, cy, w, ACADEMIC_HDR_H, LGREY, [170,196,224], 0.2);
+            doc.setFontSize(7); doc.setFont('helvetica', 'bold'); st(NAVY);
+            doc.text(T(lbl), al === 'left' ? acolX + 1.5 : acolX + w / 2, cy + ACADEMIC_HDR_H - 1.2, { align: al });
+            acolX += w;
+        });
+        cy += ACADEMIC_HDR_H;
 
-        doc.setFontSize(7); doc.setFont('helvetica','normal'); st([100,100,100]);
-        doc.text(htRoleLabel, ML, htSigLineY+4);
-        doc.text(lang.date||'Date', htDateX, htSigLineY+4);
+        // ── Behaviour table header ──────────────────────────────────────────
+        let by = tableTop;
+        filledRect(bhX2, by, bhW, ACADEMIC_HDR_H, LGREY, [170,196,224], 0.3);
+        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); st(NAVY);
+        doc.text((lang2.behavior || 'BEHAVIOUR').toUpperCase(), bhX2 + bhW / 2, by + ACADEMIC_HDR_H - 1, { align: 'center' });
+        by += ACADEMIC_HDR_H;
 
-        // ══ DELIVER ═════════════════════════════════════════════════
-        if (action === 'preview') window.open(doc.output('bloburl'), '_blank');
-        else doc.save(filename);
+        filledRect(bhX2, by, bhW * 0.75, ACADEMIC_HDR_H, LGREY, [170,196,224], 0.2);
+        filledRect(bhX2 + bhW * 0.75, by, bhW * 0.25, ACADEMIC_HDR_H, LGREY, [170,196,224], 0.2);
+        doc.setFontSize(7); doc.setFont('helvetica', 'bold'); st(NAVY);
+        doc.text(T(lang2.aspect  || 'Aspect'), bhX2 + 1.5, by + ACADEMIC_HDR_H - 1.2);
+        doc.text(T(lang2.rating  || 'Rate'),   bhX2 + bhW * 0.875, by + ACADEMIC_HDR_H - 1.2, { align: 'center' });
+        by += ACADEMIC_HDR_H;
+
+        // ── Subject rows ──────────────────────────────────────────────────
+        const subjectEntries = Object.entries(student2.scores || {})
+            .filter(([, sc]) => sc.mark != null && sc.mark !== '');
+
+        // Calculate available row height dynamically
+        const footerRowH  = 5;
+        const availForRows = tableH - ACADEMIC_HDR_H * 2 - footerRowH - 2;
+        const numSubjects  = Math.max(subjectEntries.length, 1);
+        const subRowH      = Math.min(5.5, Math.max(4, availForRows / numSubjects));
+
+        subjectEntries.forEach(([sub, sc]) => {
+            const gBg = gradeCol[sc.grade] || WHITE;
+            const gFg = gradeFg[sc.grade]  || BLACK;
+
+            let x = ML;
+            filledRect(x, cy, sbjW, subRowH, WHITE, [200,200,210], 0.2);
+            doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); st(BLACK);
+            doc.text(doc.splitTextToSize(T(sub), sbjW - 2)[0], x + 1.5, cy + subRowH / 2 + 7.5 * 0.35); x += sbjW;
+
+            filledRect(x, cy, mrkW, subRowH, WHITE, [200,200,210], 0.2);
+            doc.setFont('helvetica', 'bold');
+            doc.text(T(sc.mark), x + mrkW / 2, cy + subRowH / 2 + 7.5 * 0.35, { align: 'center' }); x += mrkW;
+
+            filledRect(x, cy, grW, subRowH, gBg, [200,200,210], 0.2);
+            doc.setFont('helvetica', 'bold'); st(gFg);
+            doc.text(T(sc.grade || '—'), x + grW / 2, cy + subRowH / 2 + 7.5 * 0.35, { align: 'center' }); x += grW;
+
+            filledRect(x, cy, cmtW, subRowH, WHITE, [200,200,210], 0.2);
+            doc.setFontSize(7); doc.setFont('helvetica', 'italic'); st([80,80,80]);
+            doc.text(doc.splitTextToSize(T(lang2.comments[sc.grade] || '—'), cmtW - 2)[0], x + 1.5, cy + subRowH / 2 + 7 * 0.35);
+
+            cy += subRowH;
+        });
+
+        // Academic footer row
+        const ftxt2 = `${lang2.points || 'Pts'}: ${student2.point}  |  ${lang2.division || 'Div'}: ${student2.division}  |  ${lang2.position || 'Pos'}: ${posInfo2}`;
+        filledRect(ML, cy, acW, footerRowH, LGREY, [170,196,224], 0.3);
+        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); st(RED);
+        doc.text(T(ftxt2), ML + 2, cy + footerRowH / 2 + 8 * 0.35);
+        cy += footerRowH;
+
+        // ── Behaviour rows ─────────────────────────────────────────────────
+        const behavItems2 = [
+            ['discipline', disc2], ['cooperation', coop2], ['learning', learn2],
+            ['sports', sports2], ['participation', part2], ['punctuality', punct2],
+            ['leadership', lead2], ['neatness', neat2], ['respect', resp2], ['creativity', creat2]
+        ];
+        const bhRowH = Math.min(subRowH, availForRows / behavItems2.length);
+
+        behavItems2.forEach(([key, val]) => {
+            const bBg = gradeCol[val] || WHITE;
+            const bFg = gradeFg[val]  || BLACK;
+            filledRect(bhX2, by, bhW * 0.75, bhRowH, WHITE, [200,200,210], 0.2);
+            filledRect(bhX2 + bhW * 0.75, by, bhW * 0.25, bhRowH, bBg, [200,200,210], 0.2);
+            doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); st(BLACK);
+            doc.text(T(lang2.behaviorAspects[key] || key), bhX2 + 1.5, by + bhRowH / 2 + 7.5 * 0.35);
+            doc.setFont('helvetica', 'bold'); st(bFg);
+            doc.text(T(val), bhX2 + bhW * 0.875, by + bhRowH / 2 + 7.5 * 0.35, { align: 'center' });
+            by += bhRowH;
+        });
+
+        // Behaviour remark
+        const remLines = doc.splitTextToSize(T(remark2), bhW - 4);
+        filledRect(bhX2, by, bhW, remLines.length * 3.5 + 3, [247,250,255], [200,200,210], 0.2);
+        doc.setFontSize(7.5); doc.setFont('helvetica', 'italic'); st([80,80,80]);
+        doc.text(remLines, bhX2 + 2, by + 3.5);
+
+        // ════════════════════════════════════════════════════════════════════
+        // FIXED ZONE — ALWAYS AT BOTTOM (pinned Y positions)
+        // ════════════════════════════════════════════════════════════════════
+
+        // ── Separator line above fixed zone ──────────────────────────────
+        sd(NAVY); doc.setLineWidth(0.5);
+        doc.line(ML, FIXED_ZONE_TOP - 2, ML + CW, FIXED_ZONE_TOP - 2);
+
+        // ── TERM DATES (auto-filled, printed) ────────────────────────────
+        let fy = DATES_Y;
+        filledRect(ML, fy, CW, DATES_H - 1, [247,250,255], [220,232,245], 0.2);
+
+        const closesLbl  = (lang2.closes  || (currentLang === 'sw' ? 'Shule Ilifungwa' : 'School Closed')) + ': ';
+        const reopensLbl = (lang2.reopens || (currentLang === 'sw' ? 'Shule Itafunguliwa' : 'School Reopens')) + ': ';
+
+        doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); st(NAVY);
+        doc.text(closesLbl, ML + 3, fy + DATES_H / 2 + 0.5);
+        doc.setFont('helvetica', 'normal'); st(BLACK);
+        doc.text(T(closingDate2 || '—'), ML + 3 + doc.getTextWidth(closesLbl), fy + DATES_H / 2 + 0.5);
+
+        const midX = ML + CW * 0.5;
+        doc.setFont('helvetica', 'bold'); st(NAVY);
+        doc.text(reopensLbl, midX, fy + DATES_H / 2 + 0.5);
+        doc.setFont('helvetica', 'normal'); st(BLACK);
+        doc.text(T(openingDate2 || '—'), midX + doc.getTextWidth(reopensLbl), fy + DATES_H / 2 + 0.5);
+
+        fy += DATES_H;
+
+        // ── REQUIREMENTS (auto-filled, printed) ──────────────────────────
+        if (reqs2.length) {
+            filledRect(ML, fy, CW, REQS_H, [255,255,240], [200,200,180], 0.2);
+            doc.setFontSize(8); doc.setFont('helvetica', 'bold'); st(NAVY);
+            doc.text((lang2.requirements || (currentLang === 'sw' ? 'Mahitaji ya Muhula Ujao' : 'Requirements for Next Term')) + ':', ML + 2, fy + 4);
+            let reqY = fy + 7;
+            reqs2.forEach((r, i) => {
+                doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); st([40,40,40]);
+                const rLines = doc.splitTextToSize(`${i + 1}. ${r}`, CW - 8);
+                doc.text(rLines, ML + 4, reqY);
+                reqY += rLines.length * 3.5;
+            });
+            fy += REQS_H;
+        }
+
+        // ── CLASS TEACHER BLOCK (PINNED, auto-filled) ─────────────────────
+        {
+            const CTY = CT_Y;
+            sd(NAVY); doc.setLineWidth(0.5);
+            doc.line(ML, CTY, ML + CW, CTY);
+
+            // Section heading
+            doc.setFontSize(9); doc.setFont('helvetica', 'bold'); st(NAVY);
+            doc.text((lang2.classComment || (currentLang === 'sw' ? "MAONI YA MWALIMU WA DARASA" : "CLASS TEACHER'S COMMENT")) + ':', ML, CTY + 5);
+
+            // Auto-filled comment text
+            const ctCommentLines = doc.splitTextToSize(T(ctComment2), CW - 4);
+            doc.setFontSize(8); doc.setFont('helvetica', 'normal'); st([40,40,40]);
+            doc.text(ctCommentLines, ML, CTY + 9);
+
+            // Signature line area — split: left=name+role, right=date
+            const sigLineY = CTY + SIG_BLOCK_H - 8;
+            const sigW     = CW * 0.55;
+            const dtX      = ML + CW * 0.64;
+            const dtW      = CW * 0.34;
+
+            // Small labels above lines
+            doc.setFontSize(7); doc.setFont('helvetica', 'normal'); st([130,130,130]);
+            const ctRoleLabel = currentLang === 'sw' ? 'Mwalimu wa Darasa' : 'Class Teacher';
+            const dtLabel     = lang2.date || (currentLang === 'sw' ? 'Tarehe' : 'Date');
+            doc.text(ctRoleLabel + ':', ML, sigLineY - 2);
+            doc.text(dtLabel + ':', dtX, sigLineY - 2);
+
+            // Signature lines
+            sd(NAVY); doc.setLineWidth(0.5);
+            doc.line(ML, sigLineY + 5, ML + sigW, sigLineY + 5);
+            doc.line(dtX, sigLineY + 5, dtX + dtW, sigLineY + 5);
+
+            // Auto-filled teacher name ON the line
+            doc.setFontSize(9); doc.setFont('helvetica', 'bold'); st(NAVY);
+            doc.text(T(classTeacher2), ML + 1, sigLineY + 4);
+            doc.text(T(closingDate2),  dtX + 1, sigLineY + 4);
+
+            // Name repeated below line (printed, not handwritten)
+            doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); st([60,60,60]);
+            doc.text(T(classTeacher2), ML, sigLineY + 8);
+            doc.text(T(closingDate2),  dtX, sigLineY + 8);
+
+            // Role label at very bottom
+            doc.setFontSize(7); st([150,150,150]);
+            doc.text(ctRoleLabel, ML, sigLineY + 12);
+        }
+
+        // ── HEAD OF SCHOOL BLOCK (PINNED, auto-filled) ────────────────────
+        {
+            const HOSY = HOS_Y;
+            sd(NAVY); doc.setLineWidth(0.5);
+            doc.line(ML, HOSY, ML + CW, HOSY);
+
+            // Section heading
+            doc.setFontSize(9); doc.setFont('helvetica', 'bold'); st(NAVY);
+            doc.text((lang2.headComment || (currentLang === 'sw' ? "MAONI YA MKUU WA SHULE" : "HEAD OF SCHOOL'S COMMENT")) + ':', ML, HOSY + 5);
+
+            // Auto-filled comment text
+            const htCommentLines = doc.splitTextToSize(T(htComment2), CW - 4);
+            doc.setFontSize(8); doc.setFont('helvetica', 'normal'); st([40,40,40]);
+            doc.text(htCommentLines, ML, HOSY + 9);
+
+            // Signature line area
+            const sigLineY = HOSY + SIG_BLOCK_H - 8;
+            const sigW     = CW * 0.55;
+            const dtX      = ML + CW * 0.64;
+            const dtW      = CW * 0.34;
+
+            // Small labels above lines
+            doc.setFontSize(7); doc.setFont('helvetica', 'normal'); st([130,130,130]);
+            const hosRoleLabel = currentLang === 'sw' ? 'Mkuu wa Shule' : 'Head of School';
+            const dtLabel      = lang2.date || (currentLang === 'sw' ? 'Tarehe' : 'Date');
+            doc.text(hosRoleLabel + ':', ML, sigLineY - 2);
+            doc.text(dtLabel + ':', dtX, sigLineY - 2);
+
+            // Signature lines
+            sd(NAVY); doc.setLineWidth(0.5);
+            doc.line(ML, sigLineY + 5, ML + sigW, sigLineY + 5);
+            doc.line(dtX, sigLineY + 5, dtX + dtW, sigLineY + 5);
+
+            // Auto-filled head name ON the line
+            doc.setFontSize(9); doc.setFont('helvetica', 'bold'); st(NAVY);
+            doc.text(T(headmaster2), ML + 1, sigLineY + 4);
+            doc.text(T(closingDate2), dtX + 1, sigLineY + 4);
+
+            // Name repeated below line (printed)
+            doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); st([60,60,60]);
+            doc.text(T(headmaster2), ML, sigLineY + 8);
+            doc.text(T(closingDate2), dtX, sigLineY + 8);
+
+            // Role label at very bottom
+            doc.setFontSize(7); st([150,150,150]);
+            doc.text(hosRoleLabel, ML, sigLineY + 12);
+        }
+
+        // ── Bottom page border accent ─────────────────────────────────────
+        sd(NAVY); doc.setLineWidth(0.3);
+        doc.line(ML, PH - BOTTOM_MARGIN, ML + CW, PH - BOTTOM_MARGIN);
+
+        // ── Watermarks (student name, very faint) ────────────────────────
+        doc.setGState && doc.setGState(new doc.GState({ opacity: 0.035 }));
+        st([26, 58, 92]);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(26);
+        try { doc.text(T(student2.name).toUpperCase(), PW / 2, PH / 2, { align: 'center', angle: 30 }); } catch(e) {}
+        doc.setGState && doc.setGState(new doc.GState({ opacity: 1 }));
+
+        // ── Candidate number watermark (top corners) ──────────────────────
+        doc.setFontSize(7); doc.setFont('helvetica', 'bold'); st([136,136,136]);
+        doc.text(T(cNum2), ML, 8.5);
+        doc.text(T(cNum2), ML + CW, 8.5, { align: 'right' });
+
+        // ── Deliver ───────────────────────────────────────────────────────
+        if (action === 'preview') {
+            window.open(doc.output('bloburl'), '_blank');
+        } else {
+            doc.save(filename);
+        }
 
     } catch (err) {
         console.error('[AXP report PDF]', err);
