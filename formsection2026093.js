@@ -1,6 +1,6 @@
 
 
-const scriptURL = 'https://script.google.com/macros/s/AKfycbx9lOPmiDnMDZaAtpi3CsX_QeWzxpqRDYnAZ2mWw_Er_DNY9UgCaaCzr180jPc89Lfw/exec';
+const scriptURL = 'https://script.google.com/macros/s/AKfycbyEs_qpwI_jgxnli-hShWXB1IiflBwgaXexZhJMvMXbDoG3wEANY8GFYckHvw7vOcTA/exec';
 
 /* ─── New global vars for school management ─────────────────── */
 let _appScriptSchoolId = null;
@@ -4245,85 +4245,84 @@ window.axpTPLoadMarks = async function() {
 };
 
 function _axpTPRenderTable(students, subjects, cls, examType, cont) {
-  if (!subjects.length) {
-    cont.innerHTML = `<div class="axp-alert axp-alert-warning"><i class="bi bi-info-circle"></i><span>No subjects configured for ${escapeHtml(cls)}.</span></div>`;
-    return;
-  }
+    /* ── Sort: females A→Z first, then males A→Z ── */
+    students = _axpSortStudents(students.slice());
 
-  /* Truncate subject headers */
-  const subHeaders = subjects.map(s =>
-    `<th title="${escapeHtml(s)}" style="max-width:70px;">
-      ${escapeHtml(s.length > 8 ? s.slice(0,8)+'…' : s)}
-     </th>`
-  ).join("");
+    if (!subjects.length) {
+        cont.innerHTML = `<div class="axp-alert axp-alert-warning"><i class="bi bi-info-circle"></i><span>No subjects configured for ${escapeHtml(cls)}.</span></div>`;
+        return;
+    }
 
-  const rows = students.map((s, i) => {
-    const examNo = s.examNo || s.exam_no || `S${String(i+1).padStart(4,"0")}`;
-    const name   = s.name || "—";
-    const gender = s.gender || s.sex || "—";
+    const subHeaders = subjects.map(s =>
+        `<th title="${escapeHtml(s)}" style="max-width:70px;">
+          ${escapeHtml(s.length > 8 ? s.slice(0,8)+'…' : s)}
+         </th>`
+    ).join("");
 
-    const cells = subjects.map(sub => {
-      const raw  = _axpExtractMark((s.marks || s.scores || {})[sub]);
-      const val  = (raw !== undefined && raw !== null) ? String(raw) : "";
-      const { grade, color } = _axpGrade(raw);
-      const key  = `${examNo}::${sub}`;
+    const rows = students.map((s, i) => {
+        const examNo = s.examNo || s.exam_no || `S${String(i+1).padStart(4,"0")}`;
+        const name   = s.name || "—";
+        const gender = s.gender || s.sex || "—";
 
-      return `
-        <td style="text-align:center;padding:3px 4px;">
-          <input
-            class="axp-tp-cell"
-            type="number" min="0" max="100"
-            value="${escapeHtml(val)}"
-            data-key="${escapeHtml(key)}"
-            data-original="${escapeHtml(val)}"
-            oninput="axpTPOnCellChange(this)"
-            onblur="axpTPOnCellBlur(this)"
-            title="${escapeHtml(sub)}: ${val || '—'}"
-          />
-          <div class="axp-tp-grade" style="color:${color};">${val ? grade : '—'}</div>
-        </td>`;
+        const cells = subjects.map(sub => {
+            const raw  = _axpExtractMark((s.marks || s.scores || {})[sub]);
+            const val  = (raw !== undefined && raw !== null) ? String(raw) : "";
+            const { grade, color } = _axpGrade(raw);
+            const key  = `${examNo}::${sub}`;
+
+            return `
+                <td style="text-align:center;padding:3px 4px;">
+                  <input
+                    class="axp-tp-cell"
+                    type="number" min="0" max="100"
+                    value="${escapeHtml(val)}"
+                    data-key="${escapeHtml(key)}"
+                    data-original="${escapeHtml(val)}"
+                    oninput="axpTPOnCellChange(this)"
+                    onblur="axpTPOnCellBlur(this)"
+                    title="${escapeHtml(sub)}: ${val || '—'}"
+                  />
+                  <div class="axp-tp-grade" style="color:${color};">${val ? grade : '—'}</div>
+                </td>`;
+        }).join("");
+
+        return `
+          <tr>
+            <td class="axp-tp-sticky-col" style="min-width:26px;text-align:center;color:#94a3b8;font-size:11px;padding:5px 7px;">${i+1}</td>
+            <td class="axp-tp-sticky-col axp-tp-examno" style="left:38px;padding:5px 8px;">${escapeHtml(examNo)}</td>
+            <td class="axp-tp-sticky-col" style="left:118px;font-weight:600;font-size:12.5px;color:#1e293b;white-space:nowrap;padding:5px 10px;">${escapeHtml(name)}</td>
+            <td style="text-align:center;font-size:12px;color:#64748b;">${gender}</td>
+            ${cells}
+            <td style="text-align:center;font-size:12px;font-weight:700;color:#64748b;" id="axpTPAvg_${i}">${s.average || s.avg || '—'}</td>
+          </tr>`;
     }).join("");
 
-    return `
-      <tr>
-        <td class="axp-tp-sticky-col" style="min-width:26px;text-align:center;color:#94a3b8;font-size:11px;padding:5px 7px;">${i+1}</td>
-        <td class="axp-tp-sticky-col axp-tp-examno" style="left:38px;padding:5px 8px;">${escapeHtml(examNo)}</td>
-        <td class="axp-tp-sticky-col" style="left:118px;font-weight:600;font-size:12.5px;color:#1a1a2e;white-space:nowrap;padding:5px 10px;">${escapeHtml(name)}</td>
-        <td style="text-align:center;font-size:12px;color:#64748b;">${gender}</td>
-        ${cells}
-        <td style="text-align:center;font-size:12px;font-weight:700;color:#64748b;" id="axpTPAvg_${i}">${s.average || s.avg || '—'}</td>
-      </tr>`;
-  }).join("");
-
-  cont.innerHTML = `
-    <!-- Info strip -->
-    <div style="background:#060c1c;color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:12.5px;">
-      <span><i class="bi bi-journal-bookmark" style="color:#4ecca3;"></i> <strong>${escapeHtml(cls)}</strong></span>
-      <span style="opacity:.5;">·</span>
-      <span><i class="bi bi-file-earmark-text" style="color:#4ecca3;"></i> ${escapeHtml(examType)}</span>
-      <span style="opacity:.5;">·</span>
-      <span><i class="bi bi-people" style="color:#4ecca3;"></i> ${students.length} students</span>
-      <span style="opacity:.5;">·</span>
-      <span><i class="bi bi-book" style="color:#4ecca3;"></i> ${subjects.length} subjects</span>
-      <span style="margin-left:auto;font-size:11px;opacity:.5;">Click any cell to edit · Tab to move</span>
-    </div>
-
-    <!-- Scrollable table wrapper -->
-    <div style="overflow-x:auto;overflow-y:auto;max-height:65vh;position:relative;">
-      <table class="axp-tp-table">
-        <thead>
-          <tr>
-            <th class="axp-tp-sticky-col" style="left:0;min-width:26px;">#</th>
-            <th class="axp-tp-sticky-col" style="left:38px;min-width:80px;">Exam No</th>
-            <th class="axp-tp-sticky-col axp-tp-th-name" style="left:118px;">Name</th>
-            <th>Sex</th>
-            ${subHeaders}
-            <th>Avg</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
+    cont.innerHTML = `
+        <div style="background:#060c1c;color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:12.5px;">
+          <span><i class="bi bi-journal-bookmark" style="color:#4ecca3;"></i> <strong>${escapeHtml(cls)}</strong></span>
+          <span style="opacity:.5;">·</span>
+          <span><i class="bi bi-file-earmark-text" style="color:#4ecca3;"></i> ${escapeHtml(examType)}</span>
+          <span style="opacity:.5;">·</span>
+          <span><i class="bi bi-people" style="color:#4ecca3;"></i> ${students.length} students</span>
+          <span style="opacity:.5;">·</span>
+          <span><i class="bi bi-book" style="color:#4ecca3;"></i> ${subjects.length} subjects</span>
+          <span style="margin-left:auto;font-size:11px;opacity:.5;">Click any cell to edit · Tab to move</span>
+        </div>
+        <div style="overflow-x:auto;overflow-y:auto;max-height:65vh;position:relative;">
+          <table class="axp-tp-table">
+            <thead>
+              <tr>
+                <th class="axp-tp-sticky-col" style="left:0;min-width:26px;">#</th>
+                <th class="axp-tp-sticky-col" style="left:38px;min-width:80px;">Exam No</th>
+                <th class="axp-tp-sticky-col axp-tp-th-name" style="left:118px;">Name</th>
+                <th>Sex</th>
+                ${subHeaders}
+                <th>Avg</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
 }
 
 /* ── Cell change handler — live grade preview + track changes ── */
@@ -5465,9 +5464,6 @@ async function createExcelFile(students, examType, selectedClass) {
 function _axpNormalizeStudents(students) {
     if (!Array.isArray(students)) return students;
 
-    // ── Exact mirrors of server-side functions ─────────────────────────────
-
-    // Server: gradeAndPoint(mark)
     function _gradeAndPoint(mark) {
         const m = parseInt(mark, 10);
         if (m >= 75) return { grade:'A', point:1 };
@@ -5477,7 +5473,6 @@ function _axpNormalizeStudents(students) {
         return { grade:'F', point:5 };
     }
 
-    // Server: calcDivision(total)
     function _calcDivision(total) {
         const t = Number(total);
         if (t <= 17) return 'I';
@@ -5487,7 +5482,6 @@ function _axpNormalizeStudents(students) {
         return 'O';
     }
 
-    // Server: calculateGradeScore(scores)
     function _calcGradeScore(scores) {
         const w = { A:5, B:4, C:3, D:2, F:1 };
         let s = 0;
@@ -5495,7 +5489,6 @@ function _axpNormalizeStudents(students) {
         return s;
     }
 
-    // Server: sortAndAssignPositions(results)
     function _assignPositions(results) {
         const sorted = results.slice().sort((a, b) => {
             const pa = typeof a.point === 'number' ? a.point : Infinity;
@@ -5521,30 +5514,22 @@ function _axpNormalizeStudents(students) {
         results.forEach(s => { s.position = posMap[s.name] !== undefined ? posMap[s.name] : ''; });
     }
 
-    // ── Normalise each student ─────────────────────────────────────────────
     students.forEach(s => {
-        // Ensure scores object
         if (!s.scores || typeof s.scores !== 'object') s.scores = {};
 
-        // ── Accept all server-side point field names ───────────────────────
         const rawPoint = s.point ?? s.points ?? s.aggregate ?? s.aggregates ?? s.total ?? null;
         const hasServerPoint = rawPoint !== null && rawPoint !== '' && rawPoint !== undefined;
 
-        // ── Accept server division (normalise format) ──────────────────────
         const rawDiv = s.division ?? s.div ?? null;
         const hasServerDiv = rawDiv !== null && String(rawDiv).trim() !== '';
 
         if (hasServerPoint && hasServerDiv) {
-            // ── Server sent both point and division — trust completely ──────
-            // Normalise point to Number (but keep 'X'/'-' strings for ABS/INC)
             s.point    = (rawPoint === 'X' || rawPoint === '-') ? rawPoint : Number(rawPoint);
-            // Normalise division string format
             s.division = String(rawDiv).trim()
                 .replace(/^div(ision)?\s*/i, '')
                 .replace(/^(\d)$/, n => ({'1':'I','2':'II','3':'III','4':'IV'}[n] || n))
                 .toUpperCase();
 
-            // Per-subject: keep server grades; fill only if missing
             Object.values(s.scores).forEach(sc => {
                 if (!sc) return;
                 if (!sc.grade && sc.mark != null && sc.mark !== '') {
@@ -5553,18 +5538,14 @@ function _axpNormalizeStudents(students) {
             });
 
         } else {
-            // ── Fallback: compute exactly as server does ───────────────────
-
-            // Step 1 — grade every subject from raw mark (server: gradeAndPoint)
             const gradePoints = [];
             Object.values(s.scores).forEach(sc => {
                 if (!sc || sc.mark == null || sc.mark === '') return;
                 const gp = _gradeAndPoint(sc.mark);
-                sc.grade = gp.grade;        // fill/overwrite grade
+                sc.grade = gp.grade;
                 gradePoints.push(gp.point);
             });
 
-            // Step 2 — best-7 total, division, ABS/INC (server logic exactly)
             gradePoints.sort((a, b) => a - b);
             if (gradePoints.length === 0) {
                 s.point    = 'X';
@@ -5578,16 +5559,14 @@ function _axpNormalizeStudents(students) {
             }
         }
 
-        // ── Name: always uppercase ─────────────────────────────────────────
         if (s.name) s.name = s.name.trim().toUpperCase();
     });
 
-    // ── Assign positions exactly as server does ────────────────────────────
-    // Only recalculate if server did not already send positions
     const missingPositions = students.some(s => s.position === undefined || s.position === null);
     if (missingPositions) _assignPositions(students);
 
-    return students;
+    /* ── Sort: females A→Z first, then males A→Z ── */
+    return _axpSortStudents(students);
 }
 
 // ── jsPDF loader — tries existing globals first, falls back to CDN ────────────
@@ -6338,413 +6317,377 @@ function renderResultsReportsSection(containerEl) {
 //   Last page: Centre Summary + Overall Analysis + Subject Table
 //
 // jsPDF is available globally as window.jspdf.jsPDF (from the html2pdf bundle).
-
-    function _axpRRGeneratePDF(action, cls, examType) {
-        if (!_currentStudents || !_currentStudents.length) {
-            _axpToast('Load results first before downloading PDF.', 'warning');
-            return Promise.resolve();
-        }
-
-        return new Promise(async (resolve) => {
-            try {
-                // ── Setup ──────────────────────────────────────────────────────
-                const jsPDFCtor = await _axpGetJsPDF().catch(e => { _axpToast('jsPDF not available: '+e.message,'error'); return null; });
-                if (!jsPDFCtor) { resolve(); return; }
-
-                const doc = new jsPDFCtor({unit:'mm',format:'a4',orientation:'landscape',compress:false,precision:6,putOnlyUsedFonts:true});
-                const PW = doc.internal.pageSize.getWidth();   // 297
-                const PH = doc.internal.pageSize.getHeight();  // 210
-                const ML = 8, MR = 8, MT = 8, MB = 10;
-                const CW = PW - ML - MR;   // content width = 281mm
-                const si = _axpSchoolInfo('en');
-                const year = (typeof _schoolMeta!=='undefined'&&_schoolMeta&&_schoolMeta.year)?_schoolMeta.year:new Date().getFullYear();
-                const examLabel = _axpExamLabel(examType,'en');
-                const classLabel = _axpClassLabel(cls,'en');
-                const sanitize = s => s.replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_');
-                const filename = `${sanitize(si.rawName||'School')}_${sanitize(cls)}_${sanitize(examType)}.pdf`;
-
-                // ── Grade/Division colour maps ─────────────────────────────────
-                const gradeCol = { A:[0,100,0], B:[0,170,0], C:[173,255,47], D:[255,165,0], F:[255,0,0] };
-                const gradeFg  = { A:[255,255,255], B:[255,255,255], C:[0,0,0], D:[0,0,0], F:[255,255,255] };
-                const divCol   = { I:[0,100,0], II:[0,170,0], III:[173,255,47], IV:[255,165,0], O:[255,0,0] };
-                const divFg    = { I:[255,255,255], II:[255,255,255], III:[0,0,0], IV:[0,0,0], O:[255,255,255] };
-                const gpaToColour = gpa => {
-                    if (gpa<=1.6) return { bg:[0,100,0],   fg:[255,255,255], grade:'A', label:'Excellent' };
-                    if (gpa<=2.6) return { bg:[0,170,0],   fg:[255,255,255], grade:'B', label:'Very Good' };
-                    if (gpa<=3.6) return { bg:[173,255,47],fg:[0,0,0],       grade:'C', label:'Good' };
-                    if (gpa<=4.6) return { bg:[255,165,0], fg:[0,0,0],       grade:'D', label:'Satisfactory' };
-                    return            { bg:[255,0,0],   fg:[255,255,255], grade:'F', label:'Fail' };
-                };
-                const gp = {A:1,B:2,C:3,D:4,F:5};
-
-                // ── Drawing helpers ────────────────────────────────────────────
-                let curY = MT;
-                let pageNum = 0;
-
-                const newPage = () => {
-                    doc.addPage();
-                    pageNum++;
-                    curY = MT + 6; // leave room for running header
-                };
-
-                // Draw running header (pages 2+) and footer on current page
-                const drawHeaderFooter = (pg, total) => {
-                    // footer — all pages
-                    doc.setDrawColor(180,180,180); doc.setLineWidth(0.2);
-                    doc.line(ML, PH-MB+2, PW-MR, PH-MB+2);
-                    doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(120,120,120);
-                    doc.text(`Page ${pg} of ${total}`, PW/2, PH-MB+5, {align:'center'});
-                    // header — pages 2+
-                    if (pg > 1) {
-                        doc.setDrawColor(51,51,51); doc.setLineWidth(0.25);
-                        doc.line(ML, MT+3, PW-MR, MT+3);
-                        doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(26,58,92);
-                        doc.text(si.displayName||si.rawName||'', ML, MT+2);
-                        doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(85,85,85);
-                        doc.text(`${classLabel} ${examLabel} | ${year}`, PW-MR, MT+2, {align:'right'});
-                    }
-                };
-
-                // Draw a cell: x,y,w,h, text, opts={bold,bg,fg,align,fontSize,wrap}
-                const cell = (x,y,w,h,text,opts={}) => {
-                    const bg = opts.bg||[255,255,255];
-                    const fg = opts.fg||[0,0,0];
-                    doc.setFillColor(...bg); doc.setDrawColor(0,0,0); doc.setLineWidth(0.2);
-                    doc.rect(x,y,w,h,'FD');
-                    doc.setTextColor(...fg);
-                    doc.setFont('helvetica', opts.bold?'bold':'normal');
-                    doc.setFontSize(opts.fontSize||7);
-                    const pad = 1.2;
-                    const align = opts.align||'center';
-                    const tx = align==='center' ? x+w/2 : align==='right' ? x+w-pad : x+pad;
-                    const ty = y+h/2+1.5;
-                    if (opts.wrap && text) {
-                        const lines = doc.splitTextToSize(String(text), w-pad*2);
-                        const lineH = (opts.fontSize||7)*0.4;
-                        lines.forEach((ln,i) => doc.text(ln, tx, y+pad*2+i*lineH, {align}));
-                    } else {
-                        doc.text(String(text??''), tx, ty, {align});
-                    }
-                };
-
-                // ── Compute student data ───────────────────────────────────────
-                const students = _currentStudents;
-                const displayMode = (document.getElementById('axpRRDisplaySel')||{value:'both'}).value;
-                const showPos = ((document.getElementById('axpRRPosSel')||{value:'show'}).value)==='show';
-                const schoolIdx = (si.rawIndex||'').replace(/[.\\/\s]/g,'').toUpperCase();
-
-                const eligible = students.filter(s=>s.point>=7&&s.point<=35).sort((a,b)=>a.point-b.point);
-                eligible.forEach((s,i)=>{ s._pos=i+1; });
-
-                const subjectSet = new Set();
-                students.forEach(s=>Object.keys(s.scores||{}).forEach(sub=>subjectSet.add(sub)));
-                const subjects = [...subjectSet];
-
-                // Division counts
-                const divCount={I:{F:0,M:0},II:{F:0,M:0},III:{F:0,M:0},IV:{F:0,M:0},O:{F:0,M:0}};
-                students.forEach(s=>{
-                    const g=s.gender==='F'?'F':'M';
-                    if(divCount[s.division])divCount[s.division][g]++;
-                });
-                const subjTot={},subjCnt={};
-                students.forEach(s=>Object.entries(s.scores||{}).forEach(([sub,sc])=>{
-                    if(gp[sc.grade]){subjTot[sub]=(subjTot[sub]||0)+gp[sc.grade];subjCnt[sub]=(subjCnt[sub]||0)+1;}
-                }));
-                const avgSubGPA=Object.keys(subjTot).length?Object.keys(subjTot).reduce((a,s)=>a+subjTot[s]/subjCnt[s],0)/Object.keys(subjTot).length:0;
-                const dp={I:1,II:2,III:3,IV:4,O:5};
-                let dPts=0,dCnt=0;
-                students.forEach(s=>{if(dp[s.division]){dPts+=dp[s.division];dCnt++;}});
-                const schoolGPA=dCnt?(avgSubGPA+dPts/dCnt)/2:null;
-
-                // ════════════════════════════════════════════════════════════════
-                // PAGE 1 — School Header + Division Table
-                // ════════════════════════════════════════════════════════════════
-                pageNum = 1;
-                curY = MT;
-
-                // School header lines
-                const hLines = [
-                    "PRESIDENT'S OFFICE",
-                    "REGIONAL ADMINISTRATION AND LOCAL GOVERNMENT",
-                    si.displayLine2 ? si.displayLine2.toUpperCase()+' DISTRICT COUNCIL' : '',
-                    (si.displayLine2?si.displayLine2.toUpperCase()+' — ':'')+si.displayName.toUpperCase(),
-                    `${classLabel.toUpperCase()} ${examLabel.toUpperCase()} RESULTS — ${year}`
-                ].filter(Boolean);
-                const hFonts = [
-                    {size:8,  bold:false},
-                    {size:8,  bold:false},
-                    {size:10, bold:true},
-                    {size:14, bold:true},
-                    {size:10, bold:true}
-                ];
-                hLines.forEach((ln,i)=>{
-                    const f=hFonts[i]||{size:8,bold:false};
-                    doc.setFont('helvetica',f.bold?'bold':'normal');
-                    doc.setFontSize(f.size); doc.setTextColor(0,0,0);
-                    doc.text(ln, PW/2, curY+f.size*0.35, {align:'center'});
-                    curY += f.size*0.45+1;
-                });
-                // Border under header
-                doc.setDrawColor(0,0,0); doc.setLineWidth(0.5);
-                doc.line(ML, curY+1, PW-MR, curY+1);
-                curY += 4;
-
-                // ── Division Table (centred, 100mm wide) ──────────────────────
-                const divKeys = ['I','II','III','IV','O'];
-                const DW = 100; // total table width mm
-                const DX = ML + (CW-DW)/2;
-                const DCW = DW/(divKeys.length+1);
-                const RH = 6;
-
-                // Header row
-                ['DIVISION',...divKeys].forEach((h,i)=>{
-                    cell(DX+i*DCW, curY, DCW, RH, h==='O'?'0':h, {bold:true, fontSize:7.5});
-                });
-                curY+=RH;
-                // F, M, T rows
-                ['F','M'].forEach(g=>{
-                    cell(DX, curY, DCW, RH, g, {bold:true});
-                    divKeys.forEach((d,i)=>cell(DX+(i+1)*DCW, curY, DCW, RH, divCount[d][g]||0));
-                    curY+=RH;
-                });
-                // Totals
-                cell(DX, curY, DCW, RH, 'T', {bold:true});
-                divKeys.forEach((d,i)=>cell(DX+(i+1)*DCW, curY, DCW, RH, (divCount[d].F||0)+(divCount[d].M||0), {bold:true}));
-                curY+=RH;
-
-                // School GPA row (coloured, spans full table width)
-                if (schoolGPA) {
-                    const gc = gpaToColour(schoolGPA);
-                    cell(DX, curY, DW, RH+1,
-                        `SCHOOL GPA: ${schoolGPA.toFixed(4)}   Grade: ${gc.grade}   (${gc.label})`,
-                        {bold:true, bg:gc.bg, fg:gc.fg, fontSize:8});
-                    curY+=RH+1;
-                }
-                curY += 4;
-
-                // ════════════════════════════════════════════════════════════════
-                // STUDENT TABLE
-                // ════════════════════════════════════════════════════════════════
-                // Columns: NO, NAME, SEX, AGG, DIV, [POS], SUBJECTS
-                const fixedCols = showPos
-                    ? [{l:"CAND'S NO",w:18},{l:"CAND'S NAME",w:38},{l:'SEX',w:8},{l:'AGG',w:10},{l:'DIV',w:10},{l:'POS',w:10}]
-                    : [{l:"CAND'S NO",w:18},{l:"CAND'S NAME",w:38},{l:'SEX',w:8},{l:'AGG',w:10},{l:'DIV',w:10}];
-                const fixedW = fixedCols.reduce((a,c)=>a+c.w,0);
-                const subjColW = CW - fixedW; // remaining width for subjects
-
-                const SRH = 5.5; // student row height
-                const THH = 6;   // table header height
-
-                // Draw student table header
-                const drawStudentHeader = () => {
-                    let x = ML;
-                    fixedCols.forEach(c=>{ cell(x,curY,c.w,THH,c.l,{bold:true,fontSize:6.5}); x+=c.w; });
-                    cell(x,curY,subjColW,THH,'DETAILED SUBJECTS',{bold:true,fontSize:6.5});
-                    curY+=THH;
-                };
-
-                drawStudentHeader();
-
-                students.forEach((s,i)=>{
-                    // Check if we need a new page
-                    if (curY + SRH > PH - MB - 6) {
-                        newPage();
-                        drawStudentHeader();
-                    }
-
-                    const cNum = schoolIdx?`${schoolIdx}-${String(i+1).padStart(4,'0')}`:`S000-${String(i+1).padStart(4,'0')}`;
-                    const summary = Object.entries(s.scores||{}).map(([sub,sc])=>{
-                        if(sc.mark==null||sc.mark==='') return '';
-                        if(displayMode==='both')  return `${sub}-${sc.mark}(${sc.grade})`;
-                        if(displayMode==='raw')   return `${sub}-${sc.mark}`;
-                        if(displayMode==='grade') return `${sub}(${sc.grade})`;
-                        return '';
-                    }).filter(Boolean).join('  ');
-
-                    const dBg = [255,255,255];
-                    const dFg = [0,0,0];
-
-                    let x = ML;
-                    // Calculate row height based on wrapped subject text
-                    const subLines = doc.splitTextToSize(summary, subjColW-2);
-                    const rowH = Math.max(SRH, subLines.length * 3.2 + 2);
-
-                    cell(x,curY,fixedCols[0].w,rowH,cNum,{fontSize:5.5}); x+=fixedCols[0].w;
-                    cell(x,curY,fixedCols[1].w,rowH,s.name||'',{fontSize:6,align:'left'}); x+=fixedCols[1].w;
-                    cell(x,curY,fixedCols[2].w,rowH,s.gender||'-',{fontSize:7}); x+=fixedCols[2].w;
-                    cell(x,curY,fixedCols[3].w,rowH,s.point,{fontSize:6.5}); x+=fixedCols[3].w;
-                    cell(x,curY,fixedCols[4].w,rowH,s.division||'-',{fontSize:7,bold:true,bg:dBg,fg:dFg}); x+=fixedCols[4].w;
-                    if (showPos) { cell(x,curY,fixedCols[5].w,rowH,s._pos||'',{fontSize:6.5}); x+=fixedCols[5].w; }
-
-                    // Subject cell with wrapped text
-                    doc.setFillColor(255,255,255); doc.setDrawColor(0,0,0); doc.setLineWidth(0.2);
-                    doc.rect(x,curY,subjColW,rowH,'FD');
-                    doc.setFont('helvetica','normal'); doc.setFontSize(5.5); doc.setTextColor(0,0,0);
-                    subLines.forEach((ln,li)=>doc.text(ln, x+1.2, curY+2.5+li*3.2));
-
-                    curY += rowH;
-                });
-
-                // ════════════════════════════════════════════════════════════════
-                // LAST PAGE — Analysis Tables
-                // ════════════════════════════════════════════════════════════════
-                newPage();
-
-                // ── Centre Summary — full content width ───────────────────
-                const passed=['I','II','III','IV'].reduce((s,d)=>(s+(divCount[d]?.F||0)+(divCount[d]?.M||0)),0);
-                const total=students.length;
-                const perfPct=total?((passed/total)*100).toFixed(2):'0.00';
-                const csRH=7, csHdrH=9;
-                const csLW=CW*0.65, csVW=CW*0.35; // label 65%, value 35%
-
-                // Title — full width
-                cell(ML,curY,CW,csHdrH,'EXAMINATION CENTRE OVERALL PERFORMANCE',{bold:true,fontSize:9});
-                curY+=csHdrH;
-                const csRows=[
-                    ['TOTAL PASSED CANDIDATES (DIV I–IV)', String(passed)],
-                    ['PERFORMANCE PERCENTAGE', perfPct+'%'],
-                ];
-                csRows.forEach(([lbl,val])=>{
-                    cell(ML,curY,csLW,csRH,lbl,{bold:true,align:'left',fontSize:8});
-                    cell(ML+csLW,curY,csVW,csRH,val,{bold:true,fontSize:8});
-                    curY+=csRH;
-                });
-                if (schoolGPA) {
-                    const gc=gpaToColour(schoolGPA);
-                    cell(ML,curY,csLW,csRH,'SCHOOL GPA',{bold:true,align:'left',fontSize:8});
-                    cell(ML+csLW,curY,csVW,csRH,`${schoolGPA.toFixed(4)} — ${gc.grade} (${gc.label})`,{bold:true,fontSize:8,bg:gc.bg,fg:gc.fg});
-                    curY+=csRH;
-                }
-                curY+=5;
-
-                // ── Overall Analysis Table ────────────────────────────────────
-                const overall={registered:{F:0,M:0},sat:{F:0,M:0},clean:{F:0,M:0},absent:{F:0,M:0},INC:{F:0,M:0}};
-                students.forEach(s=>{
-                    const g=s.gender==='F'?'F':'M';
-                    overall.registered[g]++;
-                    if(Object.keys(s.scores||{}).length>0)overall.sat[g]++;
-                    if(s.point>=7&&s.point<=35)overall.clean[g]++;
-                    if(!Object.keys(s.scores||{}).length)overall.absent[g]++;
-                    if(s.division==='INC')overall.INC[g]++;
-                });
-
-                const oCols=['REGISTERED','SAT','CLEAN','ABSENT','INC','DIV I','DIV II','DIV III','DIV IV','DIV 0'];
-                const oFW=22, oSubW=(CW-oFW)/oCols.length/3; // width per F/M/T sub-col
-                const oRH=5, oHH=5;
-
-                // Row 1 header: CANDIDATES + col groups
-                cell(ML,curY,oFW,oHH*2,'CANDIDATES',{bold:true,fontSize:6.5,align:'left'});
-                let ox=ML+oFW;
-                oCols.forEach(h=>{ cell(ox,curY,oSubW*3,oHH,h,{bold:true,fontSize:5.5}); ox+=oSubW*3; });
-                curY+=oHH;
-                // Row 2 header: F M T for each group
-                ox=ML+oFW;
-                oCols.forEach(()=>['F','M','T'].forEach(l=>{ cell(ox,curY,oSubW,oHH,l,{bold:true,fontSize:5.5}); ox+=oSubW; }));
-                curY+=oHH;
-                // Data row
-                cell(ML,curY,oFW,oRH,'No. of Candidates',{bold:true,align:'left',fontSize:5.5});
-                ox=ML+oFW;
-                ['registered','sat','clean','absent','INC'].forEach(k=>{
-                    const f=overall[k].F,m=overall[k].M;
-                    [f,m,f+m].forEach(v=>{ cell(ox,curY,oSubW,oRH,v,{fontSize:5.5}); ox+=oSubW; });
-                });
-                ['I','II','III','IV','O'].forEach(d=>{
-                    const f=divCount[d]?.F||0,m=divCount[d]?.M||0;
-                    [f,m,f+m].forEach(v=>{ cell(ox,curY,oSubW,oRH,v,{fontSize:5.5}); ox+=oSubW; });
-                });
-                curY+=oRH+6;
-
-                // ── Subject Table ─────────────────────────────────────────────
-                // Compute per-subject stats
-                const subStats={};
-                subjects.forEach(sub=>{
-                    subStats[sub]={counts:{A:{F:0,M:0},B:{F:0,M:0},C:{F:0,M:0},D:{F:0,M:0},F:{F:0,M:0}},satF:0,satM:0,tot:0,gpaSum:0};
-                });
-                students.forEach(s=>{
-                    const g=s.gender==='F'?'F':'M';
-                    Object.entries(s.scores||{}).forEach(([sub,sc])=>{
-                        if(!subStats[sub])return;
-                        if(g==='F')subStats[sub].satF++;else subStats[sub].satM++;
-                        subStats[sub].tot++;
-                        if(sc.grade&&subStats[sub].counts[sc.grade]){
-                            subStats[sub].counts[sc.grade][g]++;
-                            subStats[sub].gpaSum+=gp[sc.grade]||0;
-                        }
-                    });
-                });
-                // Compute avg and positions
-                const subGPAs={};
-                subjects.forEach(sub=>{ subGPAs[sub]=subStats[sub].tot?subStats[sub].gpaSum/subStats[sub].tot:5; });
-                const sorted=[...subjects].sort((a,b)=>subGPAs[a]-subGPAs[b]);
-                const subPos={};sorted.forEach((s,i)=>subPos[s]=i+1);
-
-                // Subject table — fill full content width
-                // Fixed proportions that sum to CW=281mm
-                const sTH=5.5, sTR=5.5;
-                const sSubW=Math.round(CW*0.14);  // ~14% subject name
-                const sSatW=Math.round(CW*0.03);  // ~3% each satF/satM/tot
-                const sGrFMT=Math.round(CW*0.02); // ~2% each F/M/T per grade (5 grades × 3 = 30%)
-                const sGrpW=sGrFMT*3;
-                const sAverW=Math.round(CW*0.05);
-                const sGpaW=Math.round(CW*0.07);
-                const sPosW=Math.round(CW*0.04);
-                const sGradeW=CW-sSubW-sSatW*3-sGrpW*5-sAverW-sGpaW-sPosW; // remainder
-                const sX=ML;
-
-                // Header row 1
-                let sx=sX;
-                cell(sx,curY,sSubW,sTH*2,'SUBJECT',{bold:true,fontSize:6,align:'left'}); sx+=sSubW;
-                ['SAT-F','SAT-M','TOTAL'].forEach(h=>{ cell(sx,curY,sSatW,sTH*2,h,{bold:true,fontSize:5}); sx+=sSatW; });
-                ['A','B','C','D','F'].forEach(gr=>{ cell(sx,curY,sGrpW,sTH,gr,{bold:true,fontSize:6}); sx+=sGrpW; });
-                ['AVER','GPA','POS','GRADE'].forEach(h=>{ cell(sx,curY,h==='GPA'?sGpaW:h==='GRADE'?sGradeW:h==='POS'?sPosW:sAverW,sTH*2,h,{bold:true,fontSize:5.5}); sx+=h==='GPA'?sGpaW:h==='GRADE'?sGradeW:h==='POS'?sPosW:sAverW; });
-                curY+=sTH;
-                // Header row 2 — F/M/T for each grade
-                sx=sX+sSubW+sSatW*3;
-                ['A','B','C','D','F'].forEach(()=>['F','M','T'].forEach(l=>{ cell(sx,curY,sGrFMT,sTH,l,{bold:true,fontSize:5}); sx+=sGrFMT; }));
-                curY+=sTH;
-
-                // Subject rows
-                subjects.forEach(sub=>{
-                    if(curY+sTR>PH-MB-6){ newPage(); }
-                    const st=subStats[sub];
-                    const gpaVal=subGPAs[sub];
-                    const gc=gpaToColour(gpaVal);
-                    const aver=st.tot?(st.gpaSum/st.tot*(100/5)).toFixed(1):'0.0'; // rough avg mark proxy
-                    sx=sX;
-                    cell(sx,curY,sSubW,sTR,sub,{bold:true,fontSize:6,align:'left'}); sx+=sSubW;
-                    [st.satF,st.satM,st.tot].forEach(v=>{ cell(sx,curY,sSatW,sTR,v,{fontSize:5.5}); sx+=sSatW; });
-                    ['A','B','C','D','F'].forEach(gr=>{
-                        const f=st.counts[gr].F,m=st.counts[gr].M;
-                        [f,m,f+m].forEach(v=>{ cell(sx,curY,sGrFMT,sTR,v,{fontSize:5.5}); sx+=sGrFMT; });
-                    });
-                    cell(sx,curY,sAverW,sTR,aver,{fontSize:5.5}); sx+=sAverW;
-                    cell(sx,curY,sGpaW,sTR,gpaVal.toFixed(4),{bold:true,fontSize:5.5,bg:gc.bg,fg:gc.fg}); sx+=sGpaW;
-                    cell(sx,curY,sPosW,sTR,subPos[sub],{fontSize:5.5}); sx+=sPosW;
-                    cell(sx,curY,sGradeW,sTR,`${gc.grade} (${gc.label})`,{bold:true,fontSize:5.5,bg:gc.bg,fg:gc.fg});
-                    curY+=sTR;
-                });
-
-                // ── Draw header/footer on all pages ───────────────────────────
-                const totalPages = doc.internal.getNumberOfPages();
-                for (let pg=1; pg<=totalPages; pg++) {
-                    doc.setPage(pg);
-                    drawHeaderFooter(pg, totalPages);
-                }
-
-                // ── Save or preview ────────────────────────────────────────────
-                if (action==='download') {
-                    doc.save(filename);
-                } else {
-                    window.open(doc.output('bloburl'), '_blank');
-                }
-                resolve();
-            } catch(err) {
-                console.error('[AXP PDF direct]', err);
-                _axpToast('PDF generation failed: '+err.message, 'error');
-                resolve();
-            }
-        });
+function _axpRRGeneratePDF(action, cls, examType) {
+    if (!_currentStudents || !_currentStudents.length) {
+        _axpToast('Load results first before downloading PDF.', 'warning');
+        return Promise.resolve();
     }
+
+    return new Promise(async (resolve) => {
+        try {
+            const jsPDFCtor = await _axpGetJsPDF().catch(e => { _axpToast('jsPDF not available: '+e.message,'error'); return null; });
+            if (!jsPDFCtor) { resolve(); return; }
+
+            const doc = new jsPDFCtor({unit:'mm',format:'a4',orientation:'landscape',compress:false,precision:6,putOnlyUsedFonts:true});
+            const PW = doc.internal.pageSize.getWidth();
+            const PH = doc.internal.pageSize.getHeight();
+            const ML = 8, MR = 8, MT = 8, MB = 10;
+            const CW = PW - ML - MR;
+            const si = _axpSchoolInfo('en');
+            const year = (typeof _schoolMeta!=='undefined'&&_schoolMeta&&_schoolMeta.year)?_schoolMeta.year:new Date().getFullYear();
+            const examLabel = _axpExamLabel(examType,'en');
+            const classLabel = _axpClassLabel(cls,'en');
+            const sanitize = s => s.replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_');
+            const filename = `${sanitize(si.rawName||'School')}_${sanitize(cls)}_${sanitize(examType)}.pdf`;
+
+            /* ── Sort: females A→Z first, then males A→Z ── */
+            const students = _axpSortStudents(_currentStudents.slice());
+
+            const gradeCol = { A:[0,100,0], B:[0,170,0], C:[173,255,47], D:[255,165,0], F:[255,0,0] };
+            const gradeFg  = { A:[255,255,255], B:[255,255,255], C:[0,0,0], D:[0,0,0], F:[255,255,255] };
+            const divCol   = { I:[0,100,0], II:[0,170,0], III:[173,255,47], IV:[255,165,0], O:[255,0,0] };
+            const divFg    = { I:[255,255,255], II:[255,255,255], III:[0,0,0], IV:[0,0,0], O:[255,255,255] };
+            const gpaToColour = gpa => {
+                if (gpa<=1.6) return { bg:[0,100,0],   fg:[255,255,255], grade:'A', label:'Excellent' };
+                if (gpa<=2.6) return { bg:[0,170,0],   fg:[255,255,255], grade:'B', label:'Very Good' };
+                if (gpa<=3.6) return { bg:[173,255,47],fg:[0,0,0],       grade:'C', label:'Good' };
+                if (gpa<=4.6) return { bg:[255,165,0], fg:[0,0,0],       grade:'D', label:'Satisfactory' };
+                return            { bg:[255,0,0],   fg:[255,255,255], grade:'F', label:'Fail' };
+            };
+            const gp = {A:1,B:2,C:3,D:4,F:5};
+
+            let curY = MT;
+            let pageNum = 0;
+
+            const newPage = () => {
+                doc.addPage();
+                pageNum++;
+                curY = MT + 6;
+            };
+
+            const drawHeaderFooter = (pg, total) => {
+                doc.setDrawColor(180,180,180); doc.setLineWidth(0.2);
+                doc.line(ML, PH-MB+2, PW-MR, PH-MB+2);
+                doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(120,120,120);
+                doc.text(`Page ${pg} of ${total}`, PW/2, PH-MB+5, {align:'center'});
+                if (pg > 1) {
+                    doc.setDrawColor(51,51,51); doc.setLineWidth(0.25);
+                    doc.line(ML, MT+3, PW-MR, MT+3);
+                    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(26,58,92);
+                    doc.text(si.displayName||si.rawName||'', ML, MT+2);
+                    doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(85,85,85);
+                    doc.text(`${classLabel} ${examLabel} | ${year}`, PW-MR, MT+2, {align:'right'});
+                }
+            };
+
+            const cell = (x,y,w,h,text,opts={}) => {
+                const bg = opts.bg||[255,255,255];
+                const fg = opts.fg||[0,0,0];
+                doc.setFillColor(...bg); doc.setDrawColor(0,0,0); doc.setLineWidth(0.2);
+                doc.rect(x,y,w,h,'FD');
+                doc.setTextColor(...fg);
+                doc.setFont('helvetica', opts.bold?'bold':'normal');
+                doc.setFontSize(opts.fontSize||7);
+                const pad = 1.2;
+                const align = opts.align||'center';
+                const tx = align==='center' ? x+w/2 : align==='right' ? x+w-pad : x+pad;
+                const ty = y+h/2+1.5;
+                if (opts.wrap && text) {
+                    const lines = doc.splitTextToSize(String(text), w-pad*2);
+                    const lineH = (opts.fontSize||7)*0.4;
+                    lines.forEach((ln,i) => doc.text(ln, tx, y+pad*2+i*lineH, {align}));
+                } else {
+                    doc.text(String(text??''), tx, ty, {align});
+                }
+            };
+
+            /* ── Compute stats using sorted students ── */
+            const eligible = students.filter(s=>s.point>=7&&s.point<=35).sort((a,b)=>a.point-b.point);
+            eligible.forEach((s,i)=>{ s._pos=i+1; });
+
+            const subjectSet = new Set();
+            students.forEach(s=>Object.keys(s.scores||{}).forEach(sub=>subjectSet.add(sub)));
+            const subjects = [...subjectSet];
+
+            const divCount={I:{F:0,M:0},II:{F:0,M:0},III:{F:0,M:0},IV:{F:0,M:0},O:{F:0,M:0}};
+            students.forEach(s=>{
+                const g=s.gender==='F'?'F':'M';
+                if(divCount[s.division])divCount[s.division][g]++;
+            });
+            const subjTot={},subjCnt={};
+            students.forEach(s=>Object.entries(s.scores||{}).forEach(([sub,sc])=>{
+                if(gp[sc.grade]){subjTot[sub]=(subjTot[sub]||0)+gp[sc.grade];subjCnt[sub]=(subjCnt[sub]||0)+1;}
+            }));
+            const avgSubGPA=Object.keys(subjTot).length?Object.keys(subjTot).reduce((a,s)=>a+subjTot[s]/subjCnt[s],0)/Object.keys(subjTot).length:0;
+            const dp={I:1,II:2,III:3,IV:4,O:5};
+            let dPts=0,dCnt=0;
+            students.forEach(s=>{if(dp[s.division]){dPts+=dp[s.division];dCnt++;}});
+            const schoolGPA=dCnt?(avgSubGPA+dPts/dCnt)/2:null;
+
+            /* ════ PAGE 1 — School Header + Division Table ════ */
+            pageNum = 1;
+            curY = MT;
+
+            const hLines = [
+                "PRESIDENT'S OFFICE",
+                "REGIONAL ADMINISTRATION AND LOCAL GOVERNMENT",
+                si.displayLine2 ? si.displayLine2.toUpperCase()+' DISTRICT COUNCIL' : '',
+                (si.displayLine2?si.displayLine2.toUpperCase()+' — ':'')+si.displayName.toUpperCase(),
+                `${classLabel.toUpperCase()} ${examLabel.toUpperCase()} RESULTS — ${year}`
+            ].filter(Boolean);
+            const hFonts = [
+                {size:8,  bold:false},
+                {size:8,  bold:false},
+                {size:10, bold:true},
+                {size:14, bold:true},
+                {size:10, bold:true}
+            ];
+            hLines.forEach((ln,i)=>{
+                const f=hFonts[i]||{size:8,bold:false};
+                doc.setFont('helvetica',f.bold?'bold':'normal');
+                doc.setFontSize(f.size); doc.setTextColor(0,0,0);
+                doc.text(ln, PW/2, curY+f.size*0.35, {align:'center'});
+                curY += f.size*0.45+1;
+            });
+            doc.setDrawColor(0,0,0); doc.setLineWidth(0.5);
+            doc.line(ML, curY+1, PW-MR, curY+1);
+            curY += 4;
+
+            /* Division table */
+            const divKeys = ['I','II','III','IV','O'];
+            const DW = 100;
+            const DX = ML + (CW-DW)/2;
+            const DCW = DW/(divKeys.length+1);
+            const RH = 6;
+
+            ['DIVISION',...divKeys].forEach((h,i)=>{
+                cell(DX+i*DCW, curY, DCW, RH, h==='O'?'0':h, {bold:true, fontSize:7.5});
+            });
+            curY+=RH;
+            ['F','M'].forEach(g=>{
+                cell(DX, curY, DCW, RH, g, {bold:true});
+                divKeys.forEach((d,i)=>cell(DX+(i+1)*DCW, curY, DCW, RH, divCount[d][g]||0));
+                curY+=RH;
+            });
+            cell(DX, curY, DCW, RH, 'T', {bold:true});
+            divKeys.forEach((d,i)=>cell(DX+(i+1)*DCW, curY, DCW, RH, (divCount[d].F||0)+(divCount[d].M||0), {bold:true}));
+            curY+=RH;
+
+            if (schoolGPA) {
+                const gc = gpaToColour(schoolGPA);
+                cell(DX, curY, DW, RH+1,
+                    `SCHOOL GPA: ${schoolGPA.toFixed(4)}   Grade: ${gc.grade}   (${gc.label})`,
+                    {bold:true, bg:gc.bg, fg:gc.fg, fontSize:8});
+                curY+=RH+1;
+            }
+            curY += 4;
+
+            /* ════ STUDENT TABLE — uses sortedStudents ════ */
+            const fixedCols = showPosition
+                ? [{l:"CAND'S NO",w:18},{l:"CAND'S NAME",w:38},{l:'SEX',w:8},{l:'AGG',w:10},{l:'DIV',w:10},{l:'POS',w:10}]
+                : [{l:"CAND'S NO",w:18},{l:"CAND'S NAME",w:38},{l:'SEX',w:8},{l:'AGG',w:10},{l:'DIV',w:10}];
+
+            /* resolve showPosition from the outer scope */
+            const showPosition = (document.getElementById('axpRRPosSel')||{value:'show'}).value === 'show';
+            const fixedCols2 = showPosition
+                ? [{l:"CAND'S NO",w:18},{l:"CAND'S NAME",w:38},{l:'SEX',w:8},{l:'AGG',w:10},{l:'DIV',w:10},{l:'POS',w:10}]
+                : [{l:"CAND'S NO",w:18},{l:"CAND'S NAME",w:38},{l:'SEX',w:8},{l:'AGG',w:10},{l:'DIV',w:10}];
+            const fixedW = fixedCols2.reduce((a,c)=>a+c.w,0);
+            const subjColW = CW - fixedW;
+            const displayMode = (document.getElementById('axpRRDisplaySel')||{value:'both'}).value;
+
+            const SRH = 5.5;
+            const THH = 6;
+            const schoolIdx = (si.rawIndex||'').replace(/[^a-z0-9]/gi,'_').replace(/_+/g,'_').toUpperCase();
+
+            const drawStudentHeader = () => {
+                let x = ML;
+                fixedCols2.forEach(c=>{ cell(x,curY,c.w,THH,c.l,{bold:true,fontSize:6.5}); x+=c.w; });
+                cell(x,curY,subjColW,THH,'DETAILED SUBJECTS',{bold:true,fontSize:6.5});
+                curY+=THH;
+            };
+
+            drawStudentHeader();
+
+            students.forEach((s,i)=>{
+                if (curY + SRH > PH - MB - 6) {
+                    newPage();
+                    drawStudentHeader();
+                }
+
+                const cNum = schoolIdx?`${schoolIdx}-${String(i+1).padStart(4,'0')}`:`S000-${String(i+1).padStart(4,'0')}`;
+                const summary = Object.entries(s.scores||{}).map(([sub,sc])=>{
+                    if(sc.mark==null||sc.mark==='') return '';
+                    if(displayMode==='both')  return `${sub}-${sc.mark}(${sc.grade})`;
+                    if(displayMode==='raw')   return `${sub}-${sc.mark}`;
+                    if(displayMode==='grade') return `${sub}(${sc.grade})`;
+                    return '';
+                }).filter(Boolean).join('  ');
+
+                let x = ML;
+                const subLines = doc.splitTextToSize(summary, subjColW-2);
+                const rowH = Math.max(SRH, subLines.length * 3.2 + 2);
+
+                cell(x,curY,fixedCols2[0].w,rowH,cNum,{fontSize:5.5}); x+=fixedCols2[0].w;
+                cell(x,curY,fixedCols2[1].w,rowH,s.name||'',{fontSize:6,align:'left'}); x+=fixedCols2[1].w;
+                cell(x,curY,fixedCols2[2].w,rowH,s.gender||'-',{fontSize:7}); x+=fixedCols2[2].w;
+                cell(x,curY,fixedCols2[3].w,rowH,s.point,{fontSize:6.5}); x+=fixedCols2[3].w;
+                cell(x,curY,fixedCols2[4].w,rowH,s.division||'-',{fontSize:7,bold:true}); x+=fixedCols2[4].w;
+                if (showPosition) { cell(x,curY,fixedCols2[5].w,rowH,s._pos||'',{fontSize:6.5}); x+=fixedCols2[5].w; }
+
+                doc.setFillColor(255,255,255); doc.setDrawColor(0,0,0); doc.setLineWidth(0.2);
+                doc.rect(x,curY,subjColW,rowH,'FD');
+                doc.setFont('helvetica','normal'); doc.setFontSize(5.5); doc.setTextColor(0,0,0);
+                subLines.forEach((ln,li)=>doc.text(ln, x+1.2, curY+2.5+li*3.2));
+
+                curY += rowH;
+            });
+
+            /* ════ LAST PAGE — Analysis Tables ════ */
+            newPage();
+
+            const passed=['I','II','III','IV'].reduce((s,d)=>(s+(divCount[d]?.F||0)+(divCount[d]?.M||0)),0);
+            const total=students.length;
+            const perfPct=total?((passed/total)*100).toFixed(2):'0.00';
+            const csRH=7, csHdrH=9;
+            const csLW=CW*0.65, csVW=CW*0.35;
+
+            cell(ML,curY,CW,csHdrH,'EXAMINATION CENTRE OVERALL PERFORMANCE',{bold:true,fontSize:9});
+            curY+=csHdrH;
+            const csRows=[
+                ['TOTAL PASSED CANDIDATES (DIV I–IV)', String(passed)],
+                ['PERFORMANCE PERCENTAGE', perfPct+'%'],
+            ];
+            csRows.forEach(([lbl,val])=>{
+                cell(ML,curY,csLW,csRH,lbl,{bold:true,align:'left',fontSize:8});
+                cell(ML+csLW,curY,csVW,csRH,val,{bold:true,fontSize:8});
+                curY+=csRH;
+            });
+            if (schoolGPA) {
+                const gc=gpaToColour(schoolGPA);
+                cell(ML,curY,csLW,csRH,'SCHOOL GPA',{bold:true,align:'left',fontSize:8});
+                cell(ML+csLW,curY,csVW,csRH,`${schoolGPA.toFixed(4)} — ${gc.grade} (${gc.label})`,{bold:true,fontSize:8,bg:gc.bg,fg:gc.fg});
+                curY+=csRH;
+            }
+            curY+=5;
+
+            /* Overall Analysis Table */
+            const overall={registered:{F:0,M:0},sat:{F:0,M:0},clean:{F:0,M:0},absent:{F:0,M:0},INC:{F:0,M:0}};
+            students.forEach(s=>{
+                const g=s.gender==='F'?'F':'M';
+                overall.registered[g]++;
+                if(Object.keys(s.scores||{}).length>0)overall.sat[g]++;
+                if(s.point>=7&&s.point<=35)overall.clean[g]++;
+                if(!Object.keys(s.scores||{}).length)overall.absent[g]++;
+                if(s.division==='INC')overall.INC[g]++;
+            });
+
+            const oCols=['REGISTERED','SAT','CLEAN','ABSENT','INC','DIV I','DIV II','DIV III','DIV IV','DIV 0'];
+            const oFW=22, oSubW=(CW-oFW)/oCols.length/3;
+            const oRH=5, oHH=5;
+
+            cell(ML,curY,oFW,oHH*2,'CANDIDATES',{bold:true,fontSize:6.5,align:'left'});
+            let ox=ML+oFW;
+            oCols.forEach(h=>{ cell(ox,curY,oSubW*3,oHH,h,{bold:true,fontSize:5.5}); ox+=oSubW*3; });
+            curY+=oHH;
+            ox=ML+oFW;
+            oCols.forEach(()=>['F','M','T'].forEach(l=>{ cell(ox,curY,oSubW,oHH,l,{bold:true,fontSize:5.5}); ox+=oSubW; }));
+            curY+=oHH;
+            cell(ML,curY,oFW,oRH,'No. of Candidates',{bold:true,align:'left',fontSize:5.5});
+            ox=ML+oFW;
+            ['registered','sat','clean','absent','INC'].forEach(k=>{
+                const f=overall[k].F,m=overall[k].M;
+                [f,m,f+m].forEach(v=>{ cell(ox,curY,oSubW,oRH,v,{fontSize:5.5}); ox+=oSubW; });
+            });
+            ['I','II','III','IV','O'].forEach(d=>{
+                const f=divCount[d]?.F||0,m=divCount[d]?.M||0;
+                [f,m,f+m].forEach(v=>{ cell(ox,curY,oSubW,oRH,v,{fontSize:5.5}); ox+=oSubW; });
+            });
+            curY+=oRH+6;
+
+            /* Subject Table */
+            const subStats={};
+            subjects.forEach(sub=>{
+                subStats[sub]={counts:{A:{F:0,M:0},B:{F:0,M:0},C:{F:0,M:0},D:{F:0,M:0},F:{F:0,M:0}},satF:0,satM:0,tot:0,gpaSum:0};
+            });
+            students.forEach(s=>{
+                const g=s.gender==='F'?'F':'M';
+                Object.entries(s.scores||{}).forEach(([sub,sc])=>{
+                    if(!subStats[sub])return;
+                    if(g==='F')subStats[sub].satF++;else subStats[sub].satM++;
+                    subStats[sub].tot++;
+                    if(sc.grade&&subStats[sub].counts[sc.grade]){
+                        subStats[sub].counts[sc.grade][g]++;
+                        subStats[sub].gpaSum+=gp[sc.grade]||0;
+                    }
+                });
+            });
+            const subGPAs={};
+            subjects.forEach(sub=>{ subGPAs[sub]=subStats[sub].tot?subStats[sub].gpaSum/subStats[sub].tot:5; });
+            const sorted2=[...subjects].sort((a,b)=>subGPAs[a]-subGPAs[b]);
+            const subPos={};sorted2.forEach((s,i)=>subPos[s]=i+1);
+
+            const sTH=5.5, sTR=5.5;
+            const sSubW=Math.round(CW*0.14);
+            const sSatW=Math.round(CW*0.03);
+            const sGrFMT=Math.round(CW*0.02);
+            const sGrpW=sGrFMT*3;
+            const sAverW=Math.round(CW*0.05);
+            const sGpaW=Math.round(CW*0.07);
+            const sPosW=Math.round(CW*0.04);
+            const sGradeW=CW-sSubW-sSatW*3-sGrpW*5-sAverW-sGpaW-sPosW;
+            const sX=ML;
+
+            let sx=sX;
+            cell(sx,curY,sSubW,sTH*2,'SUBJECT',{bold:true,fontSize:6,align:'left'}); sx+=sSubW;
+            ['SAT-F','SAT-M','TOTAL'].forEach(h=>{ cell(sx,curY,sSatW,sTH*2,h,{bold:true,fontSize:5}); sx+=sSatW; });
+            ['A','B','C','D','F'].forEach(gr=>{ cell(sx,curY,sGrpW,sTH,gr,{bold:true,fontSize:6}); sx+=sGrpW; });
+            ['AVER','GPA','POS','GRADE'].forEach(h=>{ cell(sx,curY,h==='GPA'?sGpaW:h==='GRADE'?sGradeW:h==='POS'?sPosW:sAverW,sTH*2,h,{bold:true,fontSize:5.5}); sx+=h==='GPA'?sGpaW:h==='GRADE'?sGradeW:h==='POS'?sPosW:sAverW; });
+            curY+=sTH;
+            sx=sX+sSubW+sSatW*3;
+            ['A','B','C','D','F'].forEach(()=>['F','M','T'].forEach(l=>{ cell(sx,curY,sGrFMT,sTH,l,{bold:true,fontSize:5}); sx+=sGrFMT; }));
+            curY+=sTH;
+
+            subjects.forEach(sub=>{
+                if(curY+sTR>PH-MB-6){ newPage(); }
+                const st=subStats[sub];
+                const gpaVal=subGPAs[sub];
+                const gc=gpaToColour(gpaVal);
+                const aver=st.tot?(st.gpaSum/st.tot*(100/5)).toFixed(1):'0.0';
+                sx=sX;
+                cell(sx,curY,sSubW,sTR,sub,{bold:true,fontSize:6,align:'left'}); sx+=sSubW;
+                [st.satF,st.satM,st.tot].forEach(v=>{ cell(sx,curY,sSatW,sTR,v,{fontSize:5.5}); sx+=sSatW; });
+                ['A','B','C','D','F'].forEach(gr=>{
+                    const f=st.counts[gr].F,m=st.counts[gr].M;
+                    [f,m,f+m].forEach(v=>{ cell(sx,curY,sGrFMT,sTR,v,{fontSize:5.5}); sx+=sGrFMT; });
+                });
+                cell(sx,curY,sAverW,sTR,aver,{fontSize:5.5}); sx+=sAverW;
+                cell(sx,curY,sGpaW,sTR,gpaVal.toFixed(4),{bold:true,fontSize:5.5,bg:gc.bg,fg:gc.fg}); sx+=sGpaW;
+                cell(sx,curY,sPosW,sTR,subPos[sub],{fontSize:5.5}); sx+=sPosW;
+                cell(sx,curY,sGradeW,sTR,`${gc.grade} (${gc.label})`,{bold:true,fontSize:5.5,bg:gc.bg,fg:gc.fg});
+                curY+=sTR;
+            });
+
+            /* Draw header/footer on all pages */
+            const totalPages = doc.internal.getNumberOfPages();
+            for (let pg=1; pg<=totalPages; pg++) {
+                doc.setPage(pg);
+                drawHeaderFooter(pg, totalPages);
+            }
+
+            if (action==='download') {
+                doc.save(filename);
+            } else {
+                window.open(doc.output('bloburl'), '_blank');
+            }
+            resolve();
+        } catch(err) {
+            console.error('[AXP PDF direct]', err);
+            _axpToast('PDF generation failed: '+err.message, 'error');
+            resolve();
+        }
+    });
+}
 
     function _axpRRStartReports(students) {
         const cont = document.getElementById('axpRRContent');
@@ -7008,43 +6951,35 @@ function buildDivisionTable(students) {
     return outer;
 }
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SECTION 5b: Student Results Table
-// ─────────────────────────────────────────────────────────────────────────────
-
 function buildStudentTable(students, displayMode, showPosition) {
     displayMode  = displayMode  || 'both';
     showPosition = showPosition !== undefined ? showPosition : true;
 
+    /* ── Sort: females A→Z first, then males A→Z ── */
+    const sortedStudents = _axpSortStudents(students.slice());
+
     const _siT = _axpSchoolInfo('en');
     const schoolIdx = (_siT.rawIndex || '').replace(/[.\/\\\s]/g, '').toUpperCase();
 
-    // Assign positions to eligible students
-    const eligible = students.filter(s => s.point >= 7 && s.point <= 35).sort((a,b) => a.point - b.point);
+    const eligible = sortedStudents.filter(s => s.point >= 7 && s.point <= 35).sort((a,b) => a.point - b.point);
     eligible.forEach((s,i) => { s.position = i+1; });
 
-    // Column widths:
-    // With position:  col1=7%, col2=13%, col3-5=5% each, col6(pos)=5%, col7=60%  (total=95%+5%=100%)
-    // No position:    col1=7%, col2=13%, col3-5=5% each,              col6=65%   (total=35%+65%=100%)
     const colWidths = showPosition
         ? ['7%','13%','5%','5%','5%','5%','60%']
         : ['7%','13%','5%','5%','5%','65%'];
 
     const tbl = document.createElement('table');
     tbl.className = 'axp-rr-table student-results-table';
-    // Fixed layout fits A4 landscape; rows paginate cleanly
     tbl.style.cssText = [
         'width:100%',
         'border-collapse:collapse',
         'font-size:clamp(7px,0.78vw,11px)',
-        'table-layout:fixed',   // MUST be fixed so colgroup widths are enforced
+        'table-layout:fixed',
         'font-family:Arial,sans-serif',
         'page-break-inside:auto',
         'word-wrap:break-word'
     ].join(';') + ';';
 
-    // colgroup — enforces exact widths for html2pdf
     const colgroup = document.createElement('colgroup');
     colWidths.forEach(w => {
         const col = document.createElement('col');
@@ -7053,7 +6988,6 @@ function buildStudentTable(students, displayMode, showPosition) {
     });
     tbl.appendChild(colgroup);
 
-    // thead
     const headers = ["CAND'S NO", "CAND'S NAME", 'SEX', 'AGG', 'DIV'];
     if (showPosition) headers.push('POS');
     headers.push('DETAILED SUBJECTS');
@@ -7069,18 +7003,13 @@ function buildStudentTable(students, displayMode, showPosition) {
     });
     thead.appendChild(hRow); tbl.appendChild(thead);
 
-    // tbody — each row must NOT be split across pages
     const tdStyle    = 'border:0.5px solid #000;padding:3px 4px;text-align:center;background:#fff;color:#000;overflow:hidden;white-space:nowrap;vertical-align:middle;max-width:0;';
     const tdNameStyle= 'border:0.5px solid #000;padding:3px 4px;text-align:left;background:#fff;color:#000;overflow:hidden;white-space:nowrap;vertical-align:middle;max-width:0;';
     const tdLastStyle= 'border:0.5px solid #000;padding:3px 4px;text-align:left;background:#fff;color:#000;overflow:hidden;white-space:normal;word-break:break-word;word-wrap:break-word;vertical-align:middle;font-size:clamp(6px,0.68vw,9px);max-width:0;';
 
     const tbody = document.createElement('tbody');
 
-    const _A_RPP  = 25;
-    // Runner header (pages 2+) and page footer drawn by jsPDF — not in content
-
-    students.forEach((s, i) => {
-        // page-break triggered by jsPDF header/footer — just let rows flow
+    sortedStudents.forEach((s, i) => {
         const tr = document.createElement('tr');
         tr.style.cssText = 'page-break-inside:avoid;break-inside:avoid;';
         const cNum = schoolIdx ? `${schoolIdx}-${String(i+1).padStart(4,'0')}` : `S000-${String(i+1).padStart(4,'0')}`;
@@ -7092,9 +7021,6 @@ function buildStudentTable(students, displayMode, showPosition) {
             return '';
         }).filter(Boolean).join('  ');
 
-        // Colour division cell by division (I=dark green, II=green, III=yellow-green, IV=orange, O=red)
-        const divBg = '#fff';
-        const divFg = '#000';
         const cells = [
             `<td style="${tdStyle}">${escapeHtml(cNum)}</td>`,
             `<td style="${tdNameStyle}">${escapeHtml(s.name)}</td>`,
@@ -7107,19 +7033,12 @@ function buildStudentTable(students, displayMode, showPosition) {
         tr.innerHTML = cells.join('');
         tbody.appendChild(tr);
     });
-    // Final page footer
-    // No final page footer row — page numbers handled by real PDF footer (didDrawPage)
 
     tbl.appendChild(tbody);
     return tbl;
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SECTION 5b-B: Student Results Table — Template B (Compact Grid)
-// Subjects spread across columns (one col per subject), no long text column.
-// Better for smaller classes where subjects fit across A4 landscape.
-// ─────────────────────────────────────────────────────────────────────────────
 
 function buildStudentTableB(students, displayMode, showPosition) {
     displayMode  = displayMode  || 'both';
@@ -15385,7 +15304,144 @@ window.axpPrintGeneralSheet = async function() {
       doc.setDrawColor(0,0,0);
       doc.line(cx+SIG_W, y, cx+SIG_W, y+ROW_H);
       cx += SIG_W;
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       y += ROW_H;
     });
  
