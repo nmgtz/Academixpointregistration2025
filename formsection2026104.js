@@ -4607,7 +4607,7 @@ const SchoolInfoStorage = {
         const line4 = (autoIdx ? autoIdx.toUpperCase() + ' - ' : '') + fullName;
         const line5 = 'EXAMINATION - ' + year;  // exam type added at render time
         return [
-            "PRESIDENT'S OFFICE",
+            "PRIME MINISTER'S OFFICE",
             "REGIONAL ADMINISTRATION AND LOCAL GOVERNMENT",
             (_dd_fd2.district ? (_dd_fd2.district.toUpperCase()+' DISTRICT COUNCIL') : 'DISTRICT COUNCIL'),
             line4,
@@ -6250,7 +6250,7 @@ function renderResultsReportsSection(containerEl) {
         const _dd_bsh  = (typeof _dashboardData !== 'undefined') ? _dashboardData : {};
         const _dist    = _dd_bsh.district ? _dd_bsh.district.toUpperCase() + ' DISTRICT COUNCIL' : (lines[2] || 'DISTRICT COUNCIL');
         // Override lines 0-4 with live data every time
-        lines[0] = "PRESIDENT'S OFFICE";
+        lines[0] = "PRIME MINISTER'S OFFICE";
         lines[1] = "REGIONAL ADMINISTRATION AND LOCAL GOVERNMENT";
         lines[2] = _dist;
         lines[3] = (_si_bsh.displayLine2 ? _si_bsh.displayLine2.toUpperCase() + ' — ' : '') + _si_bsh.displayName.toUpperCase();
@@ -7405,8 +7405,8 @@ function _axpFormalDoc(titleText) {
         : '';
     const centreHtml = `
         <div style="font-size:8px;font-weight:bold;letter-spacing:0.5px;text-transform:uppercase;color:#555;">
-            PRESIDENT'S OFFICE — REGIONAL ADMINISTRATION AND LOCAL GOVERNMENT
-        </div>
+    PRIME MINISTER'S OFFICE — REGIONAL ADMINISTRATION AND LOCAL GOVERNMENT
+</div>
         ${_districtLine}
         <div style="font-size:15px;font-weight:900;text-transform:uppercase;margin:3px 0;letter-spacing:0.5px;">${escapeHtml(si.displayName)}</div>
         <div style="font-size:10px;color:#555;">${escapeHtml(si.displayLine2)}</div>
@@ -8820,7 +8820,7 @@ async function _repCapturePdf(filename, action) {
         }
 
         // Lines 0-1 are ALWAYS English (government header)
-        hLines[0] = isSw ? "OFISI YA RAIS": "PRESIDENT'S OFFICE";
+        hLines[0] = isSw ? "OFISI YA WAZIRI MKUU": "PRIME MINISTER'S OFFICE";
         hLines[1] = isSw ? "TAWALA ZA MIKOA NA SERIKALI ZA MITAA": "REGIONAL ADMINISTRATION AND LOCAL GOVERNMENT";
         hLines[2] = districtLine;
         hLines[3] = (si.displayLine2 ? si.displayLine2.toUpperCase() + ' — ' : '')
@@ -9371,7 +9371,7 @@ async function _repCapturePdf(filename, action) {
                 sd(navy);doc.setLineWidth(0.5);doc.rect(4,4,PW-8,PH-8,'D');
                 sd([170,196,224]);doc.setLineWidth(0.2);doc.rect(6.5,6.5,PW-13,PH-13,'D');
 
-                doc.setFontSize(8);doc.setFont('helvetica','bold');st(navy);doc.text(si2.governmentHeader||"PRESIDENT'S OFFICE",PW/2,cy+3,{align:'center'});cy+=5;
+                doc.setFontSize(8);doc.setFont('helvetica','bold');st(navy);doc.text(si2.governmentHeader||"PRIME MINISTER'S OFFICE",PW/2,cy+3,{align:'center'});cy+=5;
                 doc.setFontSize(7);doc.setFont('helvetica','normal');st([80,80,80]);doc.text(si2.region||'',PW/2,cy+2,{align:'center'});cy+=4;
                 doc.setFontSize(13);doc.setFont('helvetica','bold');st(navy);doc.text(si2.displayLine1.toUpperCase(),PW/2,cy+4,{align:'center'});cy+=6;
                 doc.setFontSize(7);doc.setFont('helvetica','normal');st([80,80,80]);doc.text(si2.displayLine2||'',PW/2,cy+2,{align:'center'});cy+=4;
@@ -9621,7 +9621,7 @@ function renderStudentCertificates(students) {
                         <!-- Centre: government + school name -->
                         <div style="flex:1;text-align:center;">
                             <div style="font-size:6px;letter-spacing:3px;color:#999;text-transform:uppercase;font-family:Arial,sans-serif;">THE UNITED REPUBLIC OF TANZANIA</div>
-                            <div style="font-size:7px;color:#888;font-family:Arial,sans-serif;margin:0.5mm 0;">PRESIDENT'S OFFICE — REGIONAL ADMINISTRATION AND LOCAL GOVERNMENT</div>
+                            <div style="font-size:7px;color:#888;font-family:Arial,sans-serif;">PRIME MINISTER'S OFFICE — REGIONAL ADMINISTRATION AND LOCAL GOVERNMENT</div>
                             <div style="font-size:14px;font-weight:bold;color:#1a3a5c;text-transform:uppercase;letter-spacing:1.5px;line-height:1.1;">${escapeHtml((schoolName||'').toUpperCase())}</div>
                             <div style="font-size:7px;color:#777;font-family:Arial,sans-serif;margin-top:0.5mm;">${escapeHtml(schoolIndex.toUpperCase())}</div>
                         </div>
@@ -9841,7 +9841,7 @@ function renderStudentCertificates(students) {
             doc.setFontSize(5.5); doc.setFont('helvetica','normal'); st([153,153,153]);
             tx('THE UNITED REPUBLIC OF TANZANIA', centreX, cy+4, {align:'center'});
             doc.setFontSize(6); st([136,136,136]);
-            tx("PRESIDENT'S OFFICE — REGIONAL ADMINISTRATION AND LOCAL GOVERNMENT", centreX, cy+8, {align:'center'});
+           tx("PRIME MINISTER'S OFFICE — REGIONAL ADMINISTRATION AND LOCAL GOVERNMENT", centreX, cy+8, {align:'center'});
             doc.setFontSize(13); doc.setFont('helvetica','bold'); st(NAVY);
             const nameLines = doc.splitTextToSize(schoolName.toUpperCase(), CW-50);
             nameLines.forEach((ln,i)=>tx(ln, centreX, cy+14+i*5, {align:'center'}));
@@ -10248,7 +10248,7 @@ function _axpSchoolInfo(lang) {
 function _axpReportLang() {
     return {
         en: {
-            governmentHeader:'President\'s Office', localGov:'Regional Administration and Local Government',
+            governmentHeader:'Prime Minister\'s Office', localGov:'Regional Administration and Local Government',
             reportTitle:'Student Progress Report', performanceTitle:'Academic Performance',
             examNotice:'This is to notify that student', satFor:'sat for the', at:'at',
             academicStanding:'Below are their academic and behavioral evaluations:',
@@ -10278,7 +10278,7 @@ function _axpReportLang() {
                 `Parents and guardians are encouraged to review this report with the student and provide the necessary support for continued improvement.`
         },
         sw: {
-            governmentHeader:'Ofisi ya Rais', localGov:'Tawala za Mikoa na Serikali za Mitaa',
+            governmentHeader:'Ofisi ya Waziri Mkuu', localGov:'Tawala za Mikoa na Serikali za Mitaa',
             reportTitle:'Ripoti ya Maendeleo ya Mwanafunzi', performanceTitle:'Utendaji wa Kitaaluma',
             examNotice:'Hii ni kuthibitisha kuwa mwanafunzi', satFor:'alifanya mtihani wa', at:'katika',
             academicStanding:'Chini ni tathmini ya kitaaluma na tabia:',
